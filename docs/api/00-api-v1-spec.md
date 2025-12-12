@@ -1,30 +1,31 @@
-# BJJAcademy API v1 — Especificação (atualizada)
+# BJJAcademy API v1 - Especificacao (atualizada)
 
-Documento de referência rápida da API v1 do ecossistema **BJJAcademy / BJJAcademy Codex**, cobrindo convenções, módulos principais e endpoints de Auth já implementados.
+Documento de referencia rapida da API v1 do ecossistema **BJJAcademy / BJJAcademy Codex**, cobrindo convencoes, modulos principais e endpoints ja implementados.
 
 ---
 
-## 1. Visão geral
+## 1. Visao geral
 
-- **O que é**: backend que centraliza autenticação, check-ins, dashboards e gestão acadêmica da BJJAcademy.
+- **O que e**: backend que centraliza autenticacao, check-ins, dashboards e gestao academica da BJJAcademy.
 - **Stack**: NestJS + TypeScript, PostgreSQL (Supabase), acesso via `pg`/SQL cru (`DatabaseService`), JWT com roles, Swagger em `/v1/docs`.
-- **Domínios principais**: Auth & Onboarding, Dashboards, Check-in & Presenças, Alunos & Graduações, Configurações.
+- **Dominios principais**: Auth & Onboarding, Dashboards, Check-in & Presencas, Alunos & Graduacoes, Configuracoes.
 
 ---
 
-## 2. Convenções gerais
+## 2. Convencoes gerais
 
-- **Base URL / versão**: todas as rotas são servidas em `/v1` (ex.: `http://localhost:3000/v1`).
-- **Formato**: JSON; headers padrão `Content-Type: application/json; charset=utf-8`.
-- **Autenticação**: Bearer JWT no header `Authorization: Bearer <token>`.
+- **Base URL / versao**: todas as rotas sao servidas em `/v1` (ex.: `http://localhost:3000/v1`).
+- **Formato**: JSON; headers padrao `Content-Type: application/json; charset=utf-8`.
+- **Autenticacao**: Bearer JWT no header `Authorization: Bearer <token>`.
+- **Swagger/Authorize**: em `/v1/docs`, clique em **Authorize** e informe `Bearer <accessToken>` (com o prefixo) para testar rotas protegidas.
+- **Multi-tenant**: todas as consultas devem ser filtradas pelo `academiaId` presente no JWT (dashboards, presencas, regras, etc.).
 - **Claims do JWT** (emitido no login):
-  - `sub`: id do usuário (`usuarios.id`)
+  - `sub`: id do usuario (`usuarios.id`)
   - `email`
   - `role`: papel principal resolvido para a academia do token
-  - `academiaId`: academia atual do usuário
+  - `academiaId`: academia atual do usuario
 - **Roles suportados**: `ALUNO`, `INSTRUTOR`, `PROFESSOR`, `ADMIN`, `TI`.
-  - Prioridade de papel principal quando o usuário tem múltiplos papéis na mesma academia: `TI` > `ADMIN` > `PROFESSOR` > `INSTRUTOR` > `ALUNO`.
-- **Swagger/OpenAPI**: disponível em `/v1/docs` com suporte ao botão **Authorize** para testar rotas protegidas.
+  - Prioridade do papel principal quando o usuario tem multiplos papeis na mesma academia: `TI` > `ADMIN` > `PROFESSOR` > `INSTRUTOR` > `ALUNO`.
 - **Banco**: PostgreSQL (Supabase). Scripts de schema/seeds em `sql/` (ex.: `001-init-schema.sql`, `002-seed-demo-completa.sql`, `003-seed-faixas-e-regras-base.sql`).
 
 ---
@@ -35,9 +36,9 @@ Documento de referência rápida da API v1 do ecossistema **BJJAcademy / BJJAcad
 
 #### 3.1.1 POST `/auth/login`
 
-- **Descrição**: login com email/senha. Consulta usuários reais no banco, valida senha (`bcrypt`) e emite JWT.
-- **Método/URL**: `POST /v1/auth/login`
-- **Auth**: pública
+- **Descricao**: login com email/senha. Consulta usuarios reais no banco, valida senha (`bcrypt`) e emite JWT.
+- **Metodo/URL**: `POST /v1/auth/login`
+- **Auth**: publica
 - **Payload**:
   ```json
   {
@@ -61,39 +62,32 @@ Documento de referência rápida da API v1 do ecossistema **BJJAcademy / BJJAcad
   ```
 - **Notas**:
   - O `accessToken` traz os claims `sub`, `email`, `role`, `academiaId`.
-  - O `refreshToken` ainda é mock; rota `/auth/refresh` existe mas será evoluída.
+  - O `refreshToken` ainda e mock; rota `/auth/refresh` existe mas sera evoluida.
 
 #### 3.1.2 GET `/auth/me`
 
-**Descrição:**  
-Retorna o perfil do usuário autenticado, incluindo:
+**Descricao:**  
+Retorna o perfil do usuario autenticado, incluindo:
 
-- dados básicos (id, nome, email)
+- dados basicos (id, nome, email)
 - papel principal na academia atual
-- vínculo com a academia
-- status da matrícula e faixa atual
+- vinculo com a academia
+- status da matricula e faixa atual
 
-É o endpoint que o PWA/App usa para responder “quem sou eu e o que posso ver?” logo após o login.
+**Metodo:** `GET`  
+**URL:** `/v1/auth/me`  
+**Auth:** `Authorization: Bearer <accessToken>` (obrigatorio)  
+**Roles:** qualquer usuario autenticado (`ALUNO`, `INSTRUTOR`, `PROFESSOR`, `ADMIN`, `TI`)
 
-- **Método:** `GET`
-- **URL:** `/v1/auth/me`
-- **Auth:** `Authorization: Bearer <accessToken>` (obrigatório)  
-- **Roles:** qualquer usuário autenticado (`ALUNO`, `INSTRUTOR`, `PROFESSOR`, `ADMIN`, `TI`)
-
-**Fluxo típico via Swagger (`/v1/docs`):**
+**Fluxo tipico via Swagger (`/v1/docs`):**
 
 1. Chamar `POST /v1/auth/login` com `email` e `senha`.
 2. Copiar o campo `accessToken` da resposta.
 3. No Swagger, clicar em **Authorize** (cadeado verde).
-4. Preencher com `Bearer <accessToken>` (ou apenas o token, conforme placeholder).
-5. Confirmar e fechar o modal.
-6. Ir em `GET /v1/auth/me` → **Try it out** → **Execute**.
+4. Preencher com `Bearer <accessToken>` (prefixo incluso).
+5. Confirmar, fechar o modal e executar `GET /v1/auth/me`.
 
-O Swagger enviará automaticamente:
-
-```http
-Authorization: Bearer <accessToken>
-```
+O Swagger enviara automaticamente `Authorization: Bearer <accessToken>`.
 
 **Exemplo de resposta 200 (ALUNO):**
 
@@ -113,60 +107,85 @@ Authorization: Bearer <accessToken>
 }
 ```
 
-**Observação:** `role` é o papel principal do usuário na academia do token (prioridade `TI` > `ADMIN` > `PROFESSOR` > `INSTRUTOR` > `ALUNO`).  
-**Códigos de resposta:**
-- `200 OK` — usuário autenticado retornado.
-- `401 Unauthorized` — token ausente, inválido ou expirado.
-- `404 Not Found` — usuário do token não encontrado no banco.
+**Observacao:** `role` e o papel principal do usuario na academia do token (prioridade `TI` > `ADMIN` > `PROFESSOR` > `INSTRUTOR` > `ALUNO`).  
+**Codigos de resposta:** `200 OK`, `401 Unauthorized`, `404 Not Found`.
 
 #### 3.1.3 Demais rotas de Auth (estado atual)
 
-- `GET /auth/convite/:codigo` — valida código de convite.
-- `POST /auth/register` — conclui cadastro a partir de convite.
-- `POST /auth/refresh` — renova tokens (mock; será evoluído).
-- `POST /auth/forgot-password` — inicia fluxo de recuperação (stub).
-- `POST /auth/reset-password` — redefine senha com token (stub).
+- `GET /auth/convite/:codigo` - valida codigo de convite.
+- `POST /auth/register` - conclui cadastro a partir de convite.
+- `POST /auth/refresh` - renova tokens (mock; sera evoluida).
+- `POST /auth/forgot-password` - inicia fluxo de recuperacao (stub).
+- `POST /auth/reset-password` - redefine senha com token (stub).
 
 ### 3.2 Dashboards
 
-- `GET /dashboard/aluno` — métricas e progresso do aluno (planejado).
-- `GET /dashboard/staff` — visão operacional para staff/gestores (planejado).
+#### 3.2.1 GET `/dashboard/aluno` (real)
 
-### 3.3 Check-in & Presenças
+- **Roles:** `ALUNO` e papeis acima (INSTRUTOR/PROFESSOR/ADMIN/TI).
+- **Multi-tenant:** filtra `matriculas`, `aulas`, `presencas` e `regras_graduacao` pelo `academiaId` do JWT.
+- **Calculo:**
+  - `statusMatricula`: matricula mais recente do aluno na academia (prioriza `ATIVA`). Se inexistente ou inativa, retorna o status encontrado e numeros zerados.
+  - `proximaAula*`: proxima aula futura da academia (`aulas` + `turmas`, `data_inicio > now()`, ignorando `CANCELADA`).
+  - `aulasNoGrauAtual`: conta `presencas` com status `PRESENTE` desde a ultima `graduacoes.data_graduacao` (ou `data_inicio` da matricula) na mesma academia.
+  - `metaAulas`: `regras_graduacao.meta_aulas_no_grau` para a `faixa_atual_slug` do usuario; fallback `30` se nao houver regra/valor.
+  - `progressoPercentual`: `floor(aulasNoGrauAtual * 100 / metaAulas)`, limitado a `100`.
+- **Exemplo de resposta (seeds, sem aulas futuras apos 2025-11):**
+  ```json
+  {
+    "proximaAulaId": null,
+    "proximaAulaHorario": null,
+    "proximaAulaTurma": null,
+    "aulasNoGrauAtual": 20,
+    "metaAulas": 60,
+    "progressoPercentual": 33,
+    "statusMatricula": "ATIVA"
+  }
+  ```
 
-- `GET /checkin/disponiveis` — aulas disponíveis para check-in (planejado).
-- `POST /checkin` — efetiva check-in (validando QR/horário, planejado).
-- `GET /presencas` e endpoints de ajuste/validação (planejado).
+#### 3.2.2 GET `/dashboard/staff` (real)
 
-### 3.4 Alunos & Graduações
+- **Roles:** `INSTRUTOR`, `PROFESSOR`, `ADMIN`, `TI` (aluno bloqueado).
+- **Multi-tenant:** todos os contadores filtram pelo `academiaId` do JWT.
+- **Retorna:** `alunosAtivos` (matriculas `ATIVA`), `aulasHoje` (aulas da academia na data atual), `presencasHoje` e `faltasHoje` (status em `presencas` para aulas do dia).
+- **Exemplo de resposta (seeds, data fora do calendario de aulas):**
+  ```json
+  {
+    "alunosAtivos": 5,
+    "aulasHoje": 0,
+    "presencasHoje": 0,
+    "faltasHoje": 0
+  }
+  ```
 
-- `GET /alunos/:id/evolucao` — evolução de faixas/graus (planejado).
-- `GET /graduacoes` / `POST /graduacoes` — registro de graduações (planejado).
+### 3.3 Check-in & Presencas
 
-### 3.5 Configurações
+- `GET /checkin/disponiveis` - aulas disponiveis para check-in (planejado).
+- `POST /checkin` - efetiva check-in (validando QR/horario, planejado).
+- `GET /presencas` e endpoints de ajuste/validacao (planejado).
 
-- `GET /config/regras-graduacao` / `PUT /config/regras-graduacao/:faixaSlug` — regras de graduação (planejado).
-- `GET /config/tipos-treino` — tipos/modalidades de treino (planejado).
-- `POST /invites` — geração de convites (planejado).
+### 3.4 Alunos & Graduacoes
+
+- `GET /alunos/:id/evolucao` - evolucao de faixas/graus (planejado).
+- `GET /graduacoes` / `POST /graduacoes` - registro de graduacoes (planejado).
+
+### 3.5 Configuracoes
+
+- `GET /config/regras-graduacao` / `PUT /config/regras-graduacao/:faixaSlug` - regras de graduacao (planejado).
+- `GET /config/tipos-treino` - tipos/modalidades de treino (planejado).
+- `POST /invites` - geracao de convites (planejado).
 
 ---
 
-## 4. Padrões de resposta e erros
+## 4. Padroes de resposta e erros
 
-- **Status codes**:
-  - `200 OK`, `201 Created`
-  - `400 Bad Request` — validação de entrada
-  - `401 Unauthorized` — token ausente/expirado
-  - `403 Forbidden` — autenticado porém sem permissão/role
-  - `404 Not Found` — recurso ou usuário não encontrado no contexto
-  - `422 Unprocessable Entity` — regra de negócio violada
-  - `500 Internal Server Error` — erro não tratado
+- **Status codes**: `200`, `201`, `400`, `401`, `403`, `404`, `422`, `500`.
 - **Formato de erro sugerido**:
   ```json
   {
     "statusCode": 422,
     "error": "Unprocessable Entity",
-    "message": "Aluno já possui check-in nesta aula",
+    "message": "Aluno ja possui check-in nesta aula",
     "details": {
       "aulaId": "uuid-...",
       "alunoId": "uuid-..."
@@ -176,9 +195,9 @@ Authorization: Bearer <accessToken>
 
 ---
 
-## 5. Notas rápidas de implementação
+## 5. Notas rapidas de implementacao
 
-- Validar role e pertencimento à academia para rotas protegidas.
-- `TI` deve ter no mínimo as permissões de `ADMIN`, com abrangência multi-academia conforme evolução.
-- Dashboards devem retornar números já agregados, evitando cálculos pesados no frontend.
+- Validar role e pertencimento a academia para rotas protegidas.
+- `TI` deve ter no minimo as permissoes de `ADMIN`, com abrangencia multi-academia conforme evolucao.
+- Dashboards devem retornar numeros agregados pelo backend, evitando calculos pesados no frontend.
 - Check-in deve validar QR/TTL e impedir duplicidades.

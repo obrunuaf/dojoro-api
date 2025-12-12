@@ -5,6 +5,7 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { CurrentUser } from '../../common/decorators/user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../../common/enums/user-role.enum';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -21,18 +22,30 @@ export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
   @Get('aluno')
-  @Roles(UserRole.ALUNO)
-  @ApiOperation({ summary: 'Dashboard do aluno' })
+  @Roles(
+    UserRole.ALUNO,
+    UserRole.INSTRUTOR,
+    UserRole.PROFESSOR,
+    UserRole.ADMIN,
+    UserRole.TI,
+  )
+  @ApiOperation({ summary: 'Dashboard do aluno (filtrado pela academia do token)' })
   @ApiOkResponse({ type: AlunoDashboardDto })
-  async getAlunoDashboard(): Promise<AlunoDashboardDto> {
-    return this.dashboardService.getAlunoDashboard();
+  async getAlunoDashboard(
+    @CurrentUser()
+    user: { id: string; email: string; role: UserRole; academiaId: string },
+  ): Promise<AlunoDashboardDto> {
+    return this.dashboardService.getAlunoDashboard(user);
   }
 
   @Get('staff')
   @Roles(UserRole.INSTRUTOR, UserRole.PROFESSOR, UserRole.ADMIN, UserRole.TI)
-  @ApiOperation({ summary: 'Dashboard do staff' })
+  @ApiOperation({ summary: 'Dashboard do staff (academia atual do token)' })
   @ApiOkResponse({ type: StaffDashboardDto })
-  async getStaffDashboard(): Promise<StaffDashboardDto> {
-    return this.dashboardService.getStaffDashboard();
+  async getStaffDashboard(
+    @CurrentUser()
+    user: { id: string; email: string; role: UserRole; academiaId: string },
+  ): Promise<StaffDashboardDto> {
+    return this.dashboardService.getStaffDashboard(user);
   }
 }

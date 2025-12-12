@@ -2,19 +2,14 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class StaffDashboardDto {
   @ApiProperty()
-  totalAlunosAtivos: number;
+  alunosAtivos: number;
 
   @ApiProperty()
-  pendenciasCheckinHoje: number;
-
-  @ApiProperty({ description: 'Lista de graduações próximas' })
-  graduacoesProximas: Array<{
-    alunoId: string;
-    nome: string;
-    faixaAtual: string;
-    aulasRestantes: number;
-  }>;
+  aulasHoje: number;
 
   @ApiProperty()
-  dataReferencia: string;
+  presencasHoje: number;
+
+  @ApiProperty()
+  faltasHoje: number;
 }

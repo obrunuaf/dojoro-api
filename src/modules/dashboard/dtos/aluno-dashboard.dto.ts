@@ -1,14 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 export class AlunoDashboardDto {
-  @ApiProperty()
-  proximaAulaId: string;
+  @ApiProperty({ nullable: true, format: 'uuid' })
+  proximaAulaId: string | null;
 
-  @ApiProperty()
-  proximaAulaHorario: string;
+  @ApiProperty({ nullable: true, format: 'date-time' })
+  proximaAulaHorario: string | null;
 
-  @ApiProperty()
-  proximaAulaTurma: string;
+  @ApiProperty({ nullable: true })
+  proximaAulaTurma: string | null;
 
   @ApiProperty()
   aulasNoGrauAtual: number;

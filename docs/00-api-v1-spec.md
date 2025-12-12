@@ -1,6 +1,7 @@
 # BJJAcademy API v1 - Especificacao (estado atual)
 
-Estado real da API NestJS v1 com Postgres (Supabase). Todas as rotas usam o prefixo `/v1` e o Swagger fica em `/v1/docs` com esquema **JWT** habilitado.
+Estado real da API NestJS v1 com Postgres (Supabase). Todas as rotas usam o prefixo `/v1` e o Swagger fica em `/v1/docs` com esquema **JWT** habilitado.  
+Multi-tenant: sempre filtre consultas pelo `academiaId` presente no JWT.
 
 ## 1) Autenticacao no Swagger (passo a passo)
 1. Suba a API (`npm run start:dev`) e abra `http://localhost:3000/v1/docs`.
@@ -39,8 +40,12 @@ ACCESS_TOKEN="<cole-o-accessToken>"
 curl http://localhost:3000/v1/auth/me \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 
-# /dashboard/aluno (stub - retorno provisorio)
+# /dashboard/aluno (real, filtra academiaId do token)
 curl http://localhost:3000/v1/dashboard/aluno \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+
+# /dashboard/staff (real, requer INSTRUTOR/PROFESSOR/ADMIN/TI)
+curl http://localhost:3000/v1/dashboard/staff \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 
 # /alunos/:id (stub - retorno provisorio)
@@ -87,16 +92,25 @@ curl http://localhost:3000/v1/turmas \
     "matriculaDataFim": null
   }
   ```
-- `GET /dashboard/aluno` (stub):
+- `GET /dashboard/aluno` (real, multi-tenant):
   ```json
   {
-    "proximaAulaId": "aula-123",
-    "proximaAulaHorario": "2025-12-12T03:00:00.000Z",
-    "proximaAulaTurma": "Turma de No-Gi Avancado",
-    "aulasNoGrauAtual": 12,
-    "metaAulas": 30,
-    "progressoPercentual": 40,
+    "proximaAulaId": null,
+    "proximaAulaHorario": null,
+    "proximaAulaTurma": null,
+    "aulasNoGrauAtual": 20,
+    "metaAulas": 60,
+    "progressoPercentual": 33,
     "statusMatricula": "ATIVA"
+  }
+  ```
+- `GET /dashboard/staff` (real):
+  ```json
+  {
+    "alunosAtivos": 5,
+    "aulasHoje": 0,
+    "presencasHoje": 0,
+    "faltasHoje": 0
   }
   ```
 - `GET /alunos/:id` (stub):
@@ -147,8 +161,8 @@ curl http://localhost:3000/v1/turmas \
 
 ## 4) Endpoints atuais no Swagger
 - **Auth (real)**: `POST /auth/login`, `GET /auth/me`, `GET /auth/convite/:codigo`, `POST /auth/register`.
+- **Dashboard (real)**: `GET /dashboard/aluno`, `GET /dashboard/staff`.
 - **Auth (stub/mock)**: `POST /auth/refresh`, `POST /auth/forgot-password`, `POST /auth/reset-password`.
-- **Dashboard (stub)**: `GET /dashboard/aluno`, `GET /dashboard/staff`.
 - **Checkin (stub)**: `GET /checkin/disponiveis`, `POST /checkin`.
 - **Presencas (stub)**: `GET /presencas/pendencias`, `PATCH /presencas/:id/status`, `GET /alunos/:id/historico-presencas`.
 - **Alunos (stub)**: `GET /alunos`, `GET /alunos/:id`, `GET /alunos/:id/evolucao`.
