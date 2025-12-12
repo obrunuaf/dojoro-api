@@ -68,9 +68,9 @@ create table if not exists regras_graduacao (
   id                uuid primary key default gen_random_uuid(),
   academia_id       uuid not null references academias (id),
   faixa_slug        varchar(50) not null references faixas (slug),
-  aulas_minimas     integer,
+  aulas_minimas     integer check (aulas_minimas is null or aulas_minimas > 0),
   tempo_minimo_meses integer,
-  meta_aulas_no_grau integer,
+  meta_aulas_no_grau integer check (meta_aulas_no_grau is null or meta_aulas_no_grau > 0),
   constraint uq_regras_graduacao unique (academia_id, faixa_slug)
 );
 

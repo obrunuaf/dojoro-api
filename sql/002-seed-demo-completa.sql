@@ -154,7 +154,8 @@ cross join (
     ('branca',  40, 6, 40),
     ('azul',    60, 12, 60),
     ('roxa',    80, 18, 80),
-    ('marrom', 100, 24, 100)
+    ('marrom', 100, 24, 100),
+    ('preta',  120, 36, 120)
 ) as x(faixa_slug, aulas_minimas, tempo_minimo_meses, meta_aulas_no_grau)
 where a.codigo_convite = 'BJJ-SEED1'
 on conflict (academia_id, faixa_slug) do nothing;

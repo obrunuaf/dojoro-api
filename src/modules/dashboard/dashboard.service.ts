@@ -3,6 +3,8 @@ import { DatabaseService } from '../../database/database.service';
 import { AlunoDashboardDto } from './dtos/aluno-dashboard.dto';
 import { StaffDashboardDto } from './dtos/staff-dashboard.dto';
 
+const DEFAULT_META_AULAS = 60;
+
 type CurrentUser = {
   id: string;
   academiaId: string;
@@ -19,6 +21,11 @@ type ProximaAulaRow = {
   id: string;
   data_inicio: string;
   turma_nome: string;
+};
+
+type RegraGraduacaoRow = {
+  meta_aulas_no_grau: number | null;
+  aulas_minimas: number | null;
 };
 
 @Injectable()
@@ -52,13 +59,43 @@ export class DashboardService {
       );
 
       const statusMatricula = matricula?.status ?? 'INEXISTENTE';
+      const faixaAtual = await this.databaseService.queryOne<{
+        faixa_atual_slug: string | null;
+      }>(
+        `
+          select faixa_atual_slug
+          from usuarios
+          where id = $1
+          limit 1;
+        `,
+        [user.id],
+      );
+
+      let regraGraduacao: RegraGraduacaoRow | null = null;
+      if (faixaAtual?.faixa_atual_slug) {
+        regraGraduacao = await this.databaseService.queryOne<RegraGraduacaoRow>(
+          `
+            select
+              meta_aulas_no_grau,
+              aulas_minimas
+            from regras_graduacao
+            where academia_id = $1
+              and faixa_slug = $2
+            limit 1;
+          `,
+          [user.academiaId, faixaAtual.faixa_atual_slug],
+        );
+      }
+
+      const metaAulas = this.resolveMetaAulas(regraGraduacao);
+
       if (!matricula || matricula.status !== 'ATIVA') {
         return {
           proximaAulaId: null,
           proximaAulaHorario: null,
           proximaAulaTurma: null,
           aulasNoGrauAtual: 0,
-          metaAulas: 0,
+          metaAulas,
           progressoPercentual: 0,
           statusMatricula,
         };
@@ -93,36 +130,6 @@ export class DashboardService {
         [user.id, user.academiaId],
       );
 
-      const faixaAtual = await this.databaseService.queryOne<{
-        faixa_atual_slug: string | null;
-      }>(
-        `
-          select faixa_atual_slug
-          from usuarios
-          where id = $1
-          limit 1;
-        `,
-        [user.id],
-      );
-
-      let regraGraduacao: { meta_aulas_no_grau: number | null } | null = null;
-      if (faixaAtual?.faixa_atual_slug) {
-        regraGraduacao = await this.databaseService.queryOne<{
-          meta_aulas_no_grau: number | null;
-        }>(
-          `
-            select meta_aulas_no_grau
-            from regras_graduacao
-            where academia_id = $1
-              and faixa_slug = $2
-            limit 1;
-          `,
-          [user.academiaId, faixaAtual.faixa_atual_slug],
-        );
-      }
-
-      const metaAulas = regraGraduacao?.meta_aulas_no_grau ?? 30;
-
       const dataReferencia =
         ultimaGraduacao?.data_graduacao ??
         matricula.data_inicio ??
@@ -149,7 +156,7 @@ export class DashboardService {
               100,
               Math.floor((aulasNoGrauAtual * 100) / metaAulas),
             )
-          : 100;
+          : 0;
 
       return {
         proximaAulaId: proximaAula?.id ?? null,
@@ -210,5 +217,27 @@ export class DashboardService {
         'Erro ao consultar dashboard do staff',
       );
     }
+  }
+
+  private resolveMetaAulas(regraGraduacao: RegraGraduacaoRow | null): number {
+    const metaPreferencial =
+      regraGraduacao?.meta_aulas_no_grau && regraGraduacao.meta_aulas_no_grau > 0
+        ? regraGraduacao.meta_aulas_no_grau
+        : null;
+
+    if (metaPreferencial) {
+      return metaPreferencial;
+    }
+
+    const aulasMinimas =
+      regraGraduacao?.aulas_minimas && regraGraduacao.aulas_minimas > 0
+        ? regraGraduacao.aulas_minimas
+        : null;
+
+    if (aulasMinimas) {
+      return aulasMinimas;
+    }
+
+    return DEFAULT_META_AULAS;
   }
 }

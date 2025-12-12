@@ -128,8 +128,9 @@ O Swagger enviara automaticamente `Authorization: Bearer <accessToken>`.
   - `statusMatricula`: matricula mais recente do aluno na academia (prioriza `ATIVA`). Se inexistente ou inativa, retorna o status encontrado e numeros zerados.
   - `proximaAula*`: proxima aula futura da academia (`aulas` + `turmas`, `data_inicio > now()`, ignorando `CANCELADA`).
   - `aulasNoGrauAtual`: conta `presencas` com status `PRESENTE` desde a ultima `graduacoes.data_graduacao` (ou `data_inicio` da matricula) na mesma academia.
-  - `metaAulas`: `regras_graduacao.meta_aulas_no_grau` para a `faixa_atual_slug` do usuario; fallback `30` se nao houver regra/valor.
-  - `progressoPercentual`: `floor(aulasNoGrauAtual * 100 / metaAulas)`, limitado a `100`.
+  - `metaAulas`: `regras_graduacao.meta_aulas_no_grau` se > 0; se vazio/0 usa `aulas_minimas` se > 0; se ainda sem valor, fallback `DEFAULT_META_AULAS = 60`.
+  - `progressoPercentual`: se `metaAulas <= 0` retorna `0`; senao `floor(aulasNoGrauAtual * 100 / metaAulas)` limitado a `100`.
+  - Seeds/guarda-corpos: `sql/003-seed-faixas-e-regras-base.sql` e `sql/002-seed-demo-completa.sql` trazem valores > 0 (inclui faixa preta) e o schema tem CHECK para bloquear zeros; use `NULL` para desativar uma meta.
 - **Exemplo de resposta (seeds, sem aulas futuras apos 2025-11):**
   ```json
   {

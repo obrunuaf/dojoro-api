@@ -63,7 +63,7 @@ on conflict (slug) do nothing;
 -- azul:   60 aulas / 12 meses
 -- roxa:   80 aulas / 18 meses
 -- marrom: 100 aulas / 24 meses
--- preta:  meta livre (pode começar nula)
+-- preta:  120 aulas / 36 meses (ajustavel por academia)
 
 -- INFANTIL: valores sugeridos (podem ser ajustados pelo professor)
 -- ideia: progressão suave, com metas menores que adulto
@@ -89,7 +89,7 @@ cross join (
     ('azul',          60, 12,  60),
     ('roxa',          80, 18,  80),
     ('marrom',       100, 24, 100),
-    ('preta',         0,   0,   0),  -- pode ser ajustado por academia
+    ('preta',        120, 36, 120),  -- pode ser ajustado por academia
 
     -- INFANTIL - CINZA
     ('cinza_branca',  20,  3,  20),

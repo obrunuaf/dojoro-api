@@ -159,7 +159,13 @@ curl http://localhost:3000/v1/turmas \
   ]
   ```
 
-## 4) Endpoints atuais no Swagger
+## 4) Dashboards e regras de graduacao
+- `GET /v1/dashboard/aluno` depende de `regras_graduacao` filtrado por `academiaId` + `faixa_atual_slug` do usuario.
+- `metaAulas`: usa `meta_aulas_no_grau` se > 0; se vazio/0, usa `aulas_minimas` se > 0; se ainda sem valor, fallback `DEFAULT_META_AULAS = 60`.
+- `progressoPercentual`: se `metaAulas <= 0` retorna `0`; senao `floor(aulasNoGrauAtual * 100 / metaAulas)` limitado a `100`.
+- Seeds `sql/003-seed-faixas-e-regras-base.sql` e `sql/002-seed-demo-completa.sql` carregam metas > 0 (inclusive preta) e a tabela tem CHECK para impedir zeros. Para desativar uma regra use `NULL`.
+
+## 5) Endpoints atuais no Swagger
 - **Auth (real)**: `POST /auth/login`, `GET /auth/me`, `GET /auth/convite/:codigo`, `POST /auth/register`.
 - **Dashboard (real)**: `GET /dashboard/aluno`, `GET /dashboard/staff`.
 - **Auth (stub/mock)**: `POST /auth/refresh`, `POST /auth/forgot-password`, `POST /auth/reset-password`.
@@ -170,7 +176,7 @@ curl http://localhost:3000/v1/turmas \
 - **Config (stub)**: `GET /config/tipos-treino`, `GET /config/regras-graduacao`, `PUT /config/regras-graduacao/:faixaSlug`.
 - **Invites (stub)**: `POST /invites`.
 
-## 5) Banco e seeds
+## 6) Banco e seeds
 - Banco alvo: **PostgreSQL** (Supabase = Postgres gerenciado). Conexao via `DATABASE_URL` (cliente `pg`).
 - Ordem recomendada para aplicar SQL:
   1) `sql/001-init-schema.sql`
@@ -178,7 +184,7 @@ curl http://localhost:3000/v1/turmas \
   3) `sql/002-seed-demo-completa.sql`
 - Pode rodar pelo SQL Editor do Supabase ou via `psql -f <arquivo>.sql`.
 
-## 6) Seed Personas (credenciais de teste)
+## 7) Seed Personas (credenciais de teste)
 Todas pertencem a **Academia Seed BJJ**.
 - ALUNO: `aluno.seed@example.com` / `SenhaAluno123`
 - INSTRUTOR: `instrutor.seed@example.com` / `SenhaInstrutor123`

@@ -24,6 +24,12 @@ Aplicar os scripts na ordem:
 
 No Supabase: abra SQL Editor, cole cada arquivo e execute na ordem acima. Em Postgres local: `psql "$DATABASE_URL" -f sql/001-init-schema.sql` (repita para os demais).
 
+## Dashboard e regras de graduacao
+- `GET /v1/dashboard/aluno` depende de `regras_graduacao` para a `faixa_atual_slug` do usuario na academia do token.
+- `metaAulas`: usa `meta_aulas_no_grau` se > 0; se vazio/0, usa `aulas_minimas` se > 0; se ainda sem valor, cai para `DEFAULT_META_AULAS = 60`.
+- `progressoPercentual`: se `metaAulas <= 0` retorna `0`; senao `floor(aulasNoGrauAtual * 100 / metaAulas)` limitado a `100`.
+- Seeds `sql/003-seed-faixas-e-regras-base.sql` e `sql/002-seed-demo-completa.sql` agora trazem metas > 0 (inclusive faixa preta). A tabela tem CHECK para impedir zeros; para "desativar" uma regra use `NULL` nos campos e deixe o fallback assumir.
+
 ## Rodar a API
 ```bash
 npm run start:dev
