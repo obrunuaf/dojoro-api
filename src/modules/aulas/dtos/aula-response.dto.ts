@@ -1,8 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-export class AulaDto {
+export class AulaResponseDto {
   @ApiProperty()
   id: string;
+
+  @ApiProperty()
+  turmaId: string;
+
+  @ApiProperty()
+  turmaNome: string;
 
   @ApiProperty()
   dataInicio: string;
@@ -14,17 +20,11 @@ export class AulaDto {
   status: string;
 
   @ApiProperty()
-  turmaId: string;
-
-  @ApiProperty()
-  turmaNome: string;
-
-  @ApiProperty()
-  turmaHorarioPadrao: string;
-
-  @ApiProperty()
   tipoTreino: string;
 
   @ApiProperty({ nullable: true })
   instrutorNome: string | null;
+
+  @ApiProperty({ nullable: true })
+  deletedAt: string | null;
 }
