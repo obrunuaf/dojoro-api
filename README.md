@@ -38,10 +38,11 @@ Swagger: `http://localhost:3000/v1/docs`
 
 ## Como autenticar no Swagger
 - Abra `http://localhost:3000/v1/docs` e clique em **Authorize** (esquema `JWT`).
-- Faca login em `POST /v1/auth/login` e copie o `accessToken`.
-- No modal, cole **somente** o `accessToken` (sem o prefixo `Bearer`); o Swagger adiciona `Authorization: Bearer ...` automaticamente.
-- Rode `GET /v1/auth/me` e `GET /v1/dashboard/aluno`. Se vier `401`, confira se a rota tem `@ApiBearerAuth('JWT')` (ja padronizado via `@ApiAuth()`).
-- Exemplo rapido (mesmo token funciona no Swagger):
+- Chame `POST /v1/auth/login`, copie **apenas** o valor de `accessToken` (sem prefixar `Bearer`).
+- No modal Authorize, cole somente o token; o esquema bearer monta `Authorization: Bearer <token>`.
+- O Swagger so envia o header para rotas anotadas com `@ApiBearerAuth('JWT')` (todas as privadas usam `@ApiAuth()` para isso).
+- Rode `GET /v1/auth/me` (ou outras rotas) e valide o 200.
+- Exemplo rapido (token tambem funciona no Swagger):
   ```bash
   # login
   ACCESS_TOKEN=$(curl -s -X POST http://localhost:3000/v1/auth/login \
@@ -121,6 +122,7 @@ Dashboard staff (mesmo cenario, data fora do calendario das seeds):
 - PROFESSOR: `professor.seed@example.com` / `SenhaProfessor123`
 - ADMIN: `admin.seed@example.com` / `SenhaAdmin123`
 - TI: `ti.seed@example.com` / `SenhaTi123`
+- Se alterar `JWT_SECRET`, todos os tokens antigos (emitidos antes da troca) deixam de funcionar.
 
 ## Estado atual da API
 - **Real (Postgres):** `POST /v1/auth/login`, `GET /v1/auth/me`, `GET /v1/auth/convite/:codigo`, `POST /v1/auth/register`, `GET /v1/dashboard/aluno`, `GET /v1/dashboard/staff`, `GET /v1/alunos`, `GET /v1/alunos/:id`, `GET /v1/alunos/:id/evolucao`, `GET /v1/turmas`, `GET /v1/aulas/hoje`.

@@ -27,6 +27,12 @@ Documento de referencia rapida da API v1 do ecossistema **BJJAcademy / BJJAcadem
 - **Roles suportados**: `ALUNO`, `INSTRUTOR`, `PROFESSOR`, `ADMIN`, `TI`.
   - Prioridade do papel principal quando o usuario tem multiplos papeis na mesma academia: `TI` > `ADMIN` > `PROFESSOR` > `INSTRUTOR` > `ALUNO`.
 - **Banco**: PostgreSQL (Supabase). Scripts de schema/seeds em `sql/` (ex.: `001-init-schema.sql`, `002-seed-demo-completa.sql`, `003-seed-faixas-e-regras-base.sql`).
+- **Authorize no Swagger (passo a passo)**:
+  1) Acesse `http://localhost:3000/v1/docs` e clique em **Authorize** (esquema `JWT`).
+  2) Chame `POST /v1/auth/login` e copie somente o `accessToken` retornado.
+  3) No modal, cole apenas o token (nao prefixe `Bearer`); o esquema bearer monta `Authorization: Bearer <token>`.
+  4) O header so sera enviado para rotas com `@ApiBearerAuth('JWT')` (todas as privadas usam `@ApiAuth()`).
+  5) Execute `GET /v1/auth/me` para validar.
 
 ---
 
@@ -63,6 +69,12 @@ Documento de referencia rapida da API v1 do ecossistema **BJJAcademy / BJJAcadem
 - **Notas**:
   - O `accessToken` traz os claims `sub`, `email`, `role`, `academiaId`.
   - O `refreshToken` ainda e mock; rota `/auth/refresh` existe mas sera evoluida.
+- **Exemplo curl**:
+  ```bash
+  curl -X POST http://localhost:3000/v1/auth/login \
+    -H "Content-Type: application/json" \
+    -d '{"email":"aluno.seed@example.com","senha":"SenhaAluno123"}'
+  ```
 
 #### 3.1.2 GET `/auth/me`
 
@@ -111,6 +123,13 @@ O Swagger enviara automaticamente `Authorization: Bearer <accessToken>`.
 
 **Observacao:** `role` e o papel principal do usuario na academia do token (prioridade `TI` > `ADMIN` > `PROFESSOR` > `INSTRUTOR` > `ALUNO`).  
 **Codigos de resposta:** `200 OK`, `401 Unauthorized`, `404 Not Found`.
+
+**Exemplo curl (/auth/me):**
+```bash
+ACCESS_TOKEN="<cole-o-accessToken-do-login>"
+curl http://localhost:3000/v1/auth/me \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
 
 #### 3.1.3 Demais rotas de Auth (estado atual)
 
@@ -316,3 +335,16 @@ O Swagger enviara automaticamente `Authorization: Bearer <accessToken>`.
 - `TI` deve ter no minimo as permissoes de `ADMIN`, com abrangencia multi-academia conforme evolucao.
 - Dashboards devem retornar numeros agregados pelo backend, evitando calculos pesados no frontend.
 - Check-in deve validar QR/TTL e impedir duplicidades.
+
+---
+
+## 6. Seeds e contas de exemplo
+
+Todas as contas abaixo pertencem a **Academia Seed BJJ** (scripts em `sql/002-seed-demo-completa.sql`):
+- `aluno.seed@example.com` / `SenhaAluno123` — ALUNO
+- `instrutor.seed@example.com` / `SenhaInstrutor123` — INSTRUTOR (tambem ALUNO)
+- `professor.seed@example.com` / `SenhaProfessor123` — PROFESSOR (tambem ALUNO)
+- `admin.seed@example.com` / `SenhaAdmin123` — ADMIN (tambem ALUNO)
+- `ti.seed@example.com` / `SenhaTi123` — TI (tambem ALUNO)
+
+> Nota: se `JWT_SECRET` for alterado, todos os tokens emitidos antes da troca deixam de ser validos.
