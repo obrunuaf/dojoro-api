@@ -38,9 +38,19 @@ type AulaRow = {
   deleted_at: string | null;
 };
 
+type PresencaAuditColumns = {
+  updatedAt: boolean;
+  decididoEm: boolean;
+  decididoPor: boolean;
+  decisaoObservacao: boolean;
+  aprovacaoObservacao: boolean;
+};
+
 @Injectable()
 export class CheckinService {
   constructor(private readonly databaseService: DatabaseService) {}
+
+  private presencaAuditColumnsPromise?: Promise<PresencaAuditColumns>;
 
   async listarDisponiveis(
     currentUser: CurrentUser,
@@ -164,6 +174,18 @@ export class CheckinService {
     const origem = dto.tipo === 'QR' ? 'QR_CODE' : 'MANUAL';
 
     try {
+      const auditColumns = await this.getPresencaAuditColumns();
+      const auditSelectParts: string[] = [];
+      if (auditColumns.updatedAt) auditSelectParts.push('updated_at');
+      if (auditColumns.decididoEm) auditSelectParts.push('decidido_em');
+      if (auditColumns.decididoPor) auditSelectParts.push('decidido_por');
+      if (auditColumns.decisaoObservacao)
+        auditSelectParts.push('decisao_observacao');
+      if (auditColumns.aprovacaoObservacao)
+        auditSelectParts.push('aprovacao_observacao');
+      const auditSelect =
+        auditSelectParts.length > 0 ? `, ${auditSelectParts.join(', ')}` : '';
+
       const presenca = await this.databaseService.queryOne<{
         id: string;
         aula_id: string;
@@ -172,6 +194,11 @@ export class CheckinService {
         origem: 'MANUAL' | 'QR_CODE' | 'SISTEMA';
         criado_em: string;
         aprovacao_status: 'PENDENTE' | 'APROVADA' | 'REJEITADA';
+        updated_at?: string | null;
+        decidido_em?: string | null;
+        decidido_por?: string | null;
+        decisao_observacao?: string | null;
+        aprovacao_observacao?: string | null;
       }>(
         `
           insert into presencas (
@@ -184,7 +211,7 @@ export class CheckinService {
             aprovacao_status
           )
           values ($1, $2, $3, $4, $5, $6, 'PENDENTE')
-          returning id, aula_id, aluno_id, status, origem, criado_em, aprovacao_status;
+          returning id, aula_id, aluno_id, status, origem, criado_em, aprovacao_status${auditSelect};
         `,
         [
           currentUser.academiaId,
@@ -209,6 +236,15 @@ export class CheckinService {
         criadoEm: new Date(presenca.criado_em).toISOString(),
         registradoPor: currentUser.id,
         aprovacaoStatus: presenca.aprovacao_status,
+        updatedAt: presenca.updated_at
+          ? new Date(presenca.updated_at).toISOString()
+          : undefined,
+        decididoEm: presenca.decidido_em
+          ? new Date(presenca.decidido_em).toISOString()
+          : undefined,
+        decididoPor: presenca.decidido_por ?? undefined,
+        decisaoObservacao:
+          presenca.decisao_observacao ?? presenca.aprovacao_observacao ?? undefined,
       };
     } catch (error: any) {
       if (error?.code === '23505') {
@@ -250,5 +286,48 @@ export class CheckinService {
     }
 
     throw new ForbiddenException('Aluno nao possui matricula ativa na academia');
+  }
+
+  private async getPresencaAuditColumns(): Promise<PresencaAuditColumns> {
+    if (!this.presencaAuditColumnsPromise) {
+      this.presencaAuditColumnsPromise = this.databaseService
+        .query<{ column_name: string }>(
+          `
+            select column_name
+            from information_schema.columns
+            where table_schema = 'public'
+              and table_name = 'presencas'
+              and column_name = any($1)
+          `,
+          [
+            [
+              'updated_at',
+              'decidido_em',
+              'decidido_por',
+              'decisao_observacao',
+              'aprovacao_observacao',
+            ],
+          ],
+        )
+        .then((rows) => {
+          const set = new Set(rows.map((row) => row.column_name));
+          return {
+            updatedAt: set.has('updated_at'),
+            decididoEm: set.has('decidido_em'),
+            decididoPor: set.has('decidido_por'),
+            decisaoObservacao: set.has('decisao_observacao'),
+            aprovacaoObservacao: set.has('aprovacao_observacao'),
+          };
+        })
+        .catch(() => ({
+          updatedAt: false,
+          decididoEm: false,
+          decididoPor: false,
+          decisaoObservacao: false,
+          aprovacaoObservacao: false,
+        }));
+    }
+
+    return this.presencaAuditColumnsPromise;
   }
 }

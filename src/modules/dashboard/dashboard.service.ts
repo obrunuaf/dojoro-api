@@ -199,7 +199,7 @@ export class DashboardService {
               and deleted_at is null
           ),
           presencas_hoje as (
-            select p.status, p.aprovacao_status
+            select p.status
             from presencas p
             where p.academia_id = $1
               and p.aula_id in (select id from aulas_hoje)
@@ -207,9 +207,9 @@ export class DashboardService {
           select
             (select count(*) from matriculas m where m.academia_id = $1 and m.status = 'ATIVA')::int as alunos_ativos,
             (select count(*) from aulas_hoje)::int as aulas_hoje,
-            (select count(*) from presencas_hoje where status = 'PRESENTE' and aprovacao_status = 'APROVADA')::int as presencas_hoje,
-            (select count(*) from presencas_hoje where status = 'FALTA' and aprovacao_status = 'APROVADA')::int as faltas_hoje,
-            (select count(*) from presencas_hoje where aprovacao_status = 'PENDENTE')::int as pendencias_hoje;
+            (select count(*) from presencas_hoje where status = 'PRESENTE')::int as presencas_hoje,
+            (select count(*) from presencas_hoje where status = 'FALTA')::int as faltas_hoje,
+            (select count(*) from presencas_hoje where status = 'PENDENTE')::int as pendencias_hoje;
         `,
         [user.academiaId, startUtc, endUtc],
       );

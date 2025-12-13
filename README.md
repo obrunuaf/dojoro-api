@@ -29,8 +29,9 @@ Preencha:
 ## Banco de dados (Supabase/Postgres)
 Aplicar os scripts na ordem:
 1) `sql/001-init-schema.sql`
-2) `sql/003-seed-faixas-e-regras-base.sql`
-3) `sql/002-seed-demo-completa.sql`
+2) `sql/003-presencas-auditoria-decisao.sql` (nova auditoria de decisoes)
+3) `sql/003-seed-faixas-e-regras-base.sql`
+4) `sql/002-seed-demo-completa.sql`
 
 No Supabase: abra SQL Editor, cole cada arquivo e execute na ordem acima. Em Postgres local: `psql "$DATABASE_URL" -f sql/001-init-schema.sql` (repita para os demais).
 
@@ -195,13 +196,19 @@ for i in {1..6}; do
 done
 ```
 
-## Fluxo de check-in, pendencias e aprovacao
+## Fluxo de check-in, pendencias e decisao
 - `GET /v1/checkin/disponiveis` (ALUNO): aulas do dia; ignora aulas/turmas deletadas e canceladas.
-- `POST /v1/checkin` (ALUNO): cria presenca `status=PRESENTE`, `aprovacao_status=PENDENTE` e `origem` conforme tipo (QR/MANUAL); bloqueia duplicidade.
-- `GET /v1/presencas/pendencias` (STAFF): filtros opcionais (`date` **ou** `from`/`to`). Sem query, usa “hoje” no `APP_TIMEZONE`. Se enviar `from`, envie tambem `to`; `date` precisa estar em `YYYY-MM-DD`.
-- `PATCH /v1/presencas/:id/decisao` (STAFF): `decisao=APROVAR|REJEITAR`, registra quem/quando/observacao; pendencias aprovadas somem da lista.
-- `POST /v1/presencas/pendencias/lote` (STAFF): decide em lote (retorna contagem).
+- `POST /v1/checkin` (ALUNO): cria presenca `status=PRESENTE` (QR) ou `status=PENDENTE` (MANUAL); pendencias depois viram `PRESENTE` ou `FALTA`.
+- `GET /v1/presencas/pendencias` (STAFF): filtros opcionais (`date` **ou** `from`/`to`). Sem query, usa “hoje” no `APP_TIMEZONE`; sempre lista apenas `status='PENDENTE'`.
+- `PATCH /v1/presencas/:id/decisao` (STAFF): `decisao=APROVAR|REJEITAR|PRESENTE|FALTA`, muda `status` para `PRESENTE` ou `FALTA`, grava `decidido_em/decidido_por/decisao_observacao` (se colunas existirem) e falha com 409 se ja decidido.
+- `POST /v1/presencas/pendencias/lote` (STAFF): decide em lote e retorna `{ processados, atualizados, ignorados }`.
 - Seed: ja cria 1 presenca `PENDENTE` na aula “hoje” para `aluno.seed@example.com`, facilitando testes de aprovacao.
+
+Campos importantes:
+- `criado_em`: quando o check-in foi registrado.
+- `decidido_em` / `decidido_por`: quando e por quem a pendencia foi aprovada/rejeitada.
+- `decisao_observacao`: observacao livre da decisao (se a coluna existir; fallback para `aprovacao_observacao`).
+- `updated_at`: timestamp atualizado automaticamente em qualquer update via trigger.
 
 Exemplos rapidos (staff):
 ```bash
@@ -210,6 +217,8 @@ PROF_TOKEN="<token-professor>"
 # pendencias de hoje
 curl http://localhost:3000/v1/presencas/pendencias \
   -H "Authorization: Bearer $PROF_TOKEN"
+# resposta (ex):
+# { "total": 1, "itens": [{ "id": "...", "status": "PENDENTE", "alunoNome": "...", "dataInicio": "..."}] }
 
 # pendencias com filtro de data (YYYY-MM-DD)
 curl "http://localhost:3000/v1/presencas/pendencias?date=2025-12-12" \
@@ -224,13 +233,17 @@ PRESENCA_ID="<id-da-pendencia>"
 curl -X PATCH http://localhost:3000/v1/presencas/$PRESENCA_ID/decisao \
   -H "Authorization: Bearer $PROF_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"decisao":"APROVAR","observacao":"Presenca validada"}'
+  -d '{"decisao":"PRESENTE","observacao":"Presenca validada"}'
+# resposta (ex):
+# { "id": "...", "status": "PRESENTE", "alunoId": "...", "aulaId": "...", "origem": "MANUAL", "decididoEm": "...", "decididoPor": "...", "updatedAt": "..." }
 
 # decidir em lote
 curl -X POST http://localhost:3000/v1/presencas/pendencias/lote \
   -H "Authorization: Bearer $PROF_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"ids":["'"$PRESENCA_ID"'"],"decisao":"REJEITAR","observacao":"Teste"}'
+  -d '{"ids":["'"$PRESENCA_ID"'"],"decisao":"FALTA","observacao":"Teste"}'
+# resposta (ex):
+# { "processados": 1, "atualizados": ["'"$PRESENCA_ID"'"], "ignorados": [] }
 ```
 
 ## Timezone e "hoje"
@@ -305,7 +318,7 @@ Dashboard staff (mesmo cenario, data fora do calendario das seeds):
 - Endpoints protegidos com `@ApiAuth()` no Swagger (`/v1/docs`); clique em **Authorize** e cole somente o `accessToken` do login.
 - Usa `APP_TIMEZONE` para a janela de "hoje" ([startUtc, endUtc)) e `QR_TTL_MINUTES` (default `5`) para o vencimento do QR.
 - ALUNO so enxerga a propria presenca; STAFF acessa apenas a academia do token.
-- Check-in do aluno sempre cria `aprovacao_status=PENDENTE` (`status=PRESENTE` quando QR, `status=PENDENTE` quando MANUAL). STAFF decide via `PATCH /v1/presencas/:id/decisao` ou `POST /v1/presencas/pendencias/lote`.
+- Check-in do aluno cria `status=PRESENTE` quando QR e `status=PENDENTE` quando MANUAL; STAFF decide pendencias (`status='PENDENTE'`) para `PRESENTE` ou `FALTA` via `PATCH /v1/presencas/:id/decisao` ou `POST /v1/presencas/pendencias/lote`.
 
 Fluxo rapido (curl):
 ```bash
@@ -348,13 +361,13 @@ PRESENCA_ID="<id retornado em pendencias>"
 curl -X PATCH http://localhost:3000/v1/presencas/$PRESENCA_ID/decisao \
   -H "Authorization: Bearer $STAFF_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"decisao":"APROVAR","observacao":"Validado"}'
+  -d '{"decisao":"PRESENTE","observacao":"Validado"}'
 
 # decidir em lote
 curl -X POST http://localhost:3000/v1/presencas/pendencias/lote \
   -H "Authorization: Bearer $STAFF_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"ids":["'"$PRESENCA_ID"'"],"decisao":"REJEITAR","observacao":"Teste"}'
+  -d '{"ids":["'"$PRESENCA_ID"'"],"decisao":"FALTA","observacao":"Teste"}'
 
 # historico do aluno (ALUNO so o proprio; STAFF mesma academia)
 ALUNO_ID="<id do aluno>"

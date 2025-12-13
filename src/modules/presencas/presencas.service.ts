@@ -8,8 +8,8 @@ import {
 import { UserRole } from '../../common/enums/user-role.enum';
 import { DatabaseService } from '../../database/database.service';
 import { CheckinResponseDto } from '../checkin/dtos/checkin-response.dto';
-import { DecisaoPendenciaLoteDto } from './dtos/decisao-pendencia-lote.dto';
-import { DecisaoPendenciaDto } from './dtos/decisao-pendencia.dto';
+import { DecisaoLoteDto } from './dtos/decisao-lote.dto';
+import { DecisaoInput, DecisaoPresencaDto } from './dtos/decisao-presenca.dto';
 import { HistoricoPresencaDto } from './dtos/historico-presenca.dto';
 import { PresencaPendenteDto } from './dtos/presenca-pendente.dto';
 
@@ -30,6 +30,11 @@ type PendenciaRow = {
   data_inicio: string;
   origem: 'MANUAL' | 'QR_CODE' | 'SISTEMA';
   criado_em: string;
+  decidido_em?: string | null;
+  decidido_por?: string | null;
+  decisao_observacao?: string | null;
+  aprovacao_observacao?: string | null;
+  updated_at?: string | null;
 };
 
 type PresencaRow = {
@@ -41,18 +46,54 @@ type PresencaRow = {
   origem: 'MANUAL' | 'QR_CODE' | 'SISTEMA';
   criado_em: string;
   registrado_por: string | null;
-  aprovacao_status: 'PENDENTE' | 'APROVADA' | 'REJEITADA';
+  aprovacao_status?: 'PENDENTE' | 'APROVADA' | 'REJEITADA';
+  aprovado_por?: string | null;
+  aprovado_em?: string | null;
+  rejeitado_por?: string | null;
+  rejeitado_em?: string | null;
+  aprovacao_observacao?: string | null;
+  decidido_por?: string | null;
+  decidido_em?: string | null;
+  decisao_observacao?: string | null;
+  updated_at?: string | null;
+};
+
+type PresencaAuditColumns = {
+  aprovacaoStatus: boolean;
+  aprovadoPor: boolean;
+  aprovadoEm: boolean;
+  rejeitadoPor: boolean;
+  rejeitadoEm: boolean;
+  aprovacaoObservacao: boolean;
+  decididoPor: boolean;
+  decididoEm: boolean;
+  decisaoObservacao: boolean;
+  updatedAt: boolean;
 };
 
 @Injectable()
 export class PresencasService {
   constructor(private readonly databaseService: DatabaseService) {}
 
+  private presencaAuditColumnsPromise?: Promise<PresencaAuditColumns>;
+
   async listarPendencias(
     currentUser: CurrentUser,
     filtros?: { date?: string; from?: string; to?: string },
   ): Promise<{ total: number; itens: PresencaPendenteDto[] }> {
     const range = await this.resolveDateRange(filtros);
+    const auditColumns = await this.getPresencaAuditColumns();
+
+    const auditSelectParts: string[] = [];
+    if (auditColumns.decididoEm) auditSelectParts.push('p.decidido_em');
+    if (auditColumns.decididoPor) auditSelectParts.push('p.decidido_por');
+    if (auditColumns.decisaoObservacao)
+      auditSelectParts.push('p.decisao_observacao');
+    if (auditColumns.aprovacaoObservacao)
+      auditSelectParts.push('p.aprovacao_observacao');
+    if (auditColumns.updatedAt) auditSelectParts.push('p.updated_at');
+    const auditSelect =
+      auditSelectParts.length > 0 ? `, ${auditSelectParts.join(', ')}` : '';
 
     const pendencias = await this.databaseService.query<PendenciaRow>(
       `
@@ -66,6 +107,7 @@ export class PresencasService {
           a.data_inicio,
           p.origem,
           p.criado_em
+          ${auditSelect}
         from presencas p
         join aulas a on a.id = p.aula_id
         join turmas t on t.id = a.turma_id
@@ -93,16 +135,24 @@ export class PresencasService {
         origem: row.origem,
         status: row.status as PresencaPendenteDto['status'],
         criadoEm: new Date(row.criado_em).toISOString(),
+        decididoEm: row.decidido_em ? new Date(row.decidido_em).toISOString() : null,
+        decididoPor: row.decidido_por ?? null,
+        decisaoObservacao:
+          row.decisao_observacao ?? row.aprovacao_observacao ?? null,
+        updatedAt: row.updated_at
+          ? new Date(row.updated_at).toISOString()
+          : undefined,
       })),
     };
   }
 
-  async decidir(
+  async decidirPresenca(
     id: string,
-    dto: DecisaoPendenciaDto,
+    dto: DecisaoPresencaDto,
     currentUser: CurrentUser,
   ): Promise<CheckinResponseDto> {
-    const presenca = await this.buscarPresenca(id);
+    const auditColumns = await this.getPresencaAuditColumns();
+    const presenca = await this.buscarPresenca(id, auditColumns);
 
     if (!presenca) {
       throw new NotFoundException('Presenca nao encontrada');
@@ -112,92 +162,122 @@ export class PresencasService {
       throw new ForbiddenException('Presenca nao pertence a academia do usuario');
     }
 
-    if (presenca.aprovacao_status !== 'PENDENTE') {
-      throw new ConflictException('Presenca ja foi decidida');
+    if (presenca.status !== 'PENDENTE') {
+      throw new ConflictException(
+        `Presenca ja decidida (status=${presenca.status})`,
+      );
     }
 
-    const decisao = dto.decisao === 'APROVAR' ? 'APROVADA' : 'REJEITADA';
+    const update = this.buildDecisionUpdate(
+      dto.decisao,
+      currentUser.id,
+      auditColumns,
+      dto.observacao,
+    );
 
     const atualizada = await this.databaseService.queryOne<PresencaRow>(
       `
-        update presencas
-           set aprovacao_status = $1,
-               aprovado_por = case when $1 = 'APROVADA' then $2 else null end,
-               aprovado_em = case when $1 = 'APROVADA' then now() else null end,
-               rejeitado_por = case when $1 = 'REJEITADA' then $2 else null end,
-               rejeitado_em = case when $1 = 'REJEITADA' then now() else null end,
-               aprovacao_observacao = $3
-         where id = $4
-           and academia_id = $5
-         returning id, aula_id, aluno_id, status, origem, criado_em, registrado_por, aprovacao_status;
+        update presencas p
+           set ${update.setClause}
+         where id = $${update.params.length + 1}
+           and academia_id = $${update.params.length + 2}
+           and status = 'PENDENTE'
+         returning ${this.buildPresencaSelect(auditColumns, 'p')};
       `,
-      [
-        decisao,
-        currentUser.id,
-        dto.observacao ?? null,
-        id,
-        currentUser.academiaId,
-      ],
+      [...update.params, id, currentUser.academiaId],
     );
 
     if (!atualizada) {
-      throw new NotFoundException('Presenca nao encontrada');
+      throw new ConflictException('Presenca ja foi decidida');
     }
 
     return this.mapPresencaResponse(atualizada, currentUser.id);
   }
 
   async decidirLote(
-    dto: DecisaoPendenciaLoteDto,
+    dto: DecisaoLoteDto,
     currentUser: CurrentUser,
   ): Promise<{
-    totalProcessados: number;
-    aprovados: number;
-    rejeitados: number;
-    ignorados: number;
+    processados: number;
+    atualizados: string[];
+    ignorados: { id: string; motivo: string }[];
   }> {
-    const decisao = dto.decisao === 'APROVAR' ? 'APROVADA' : 'REJEITADA';
+    const ids = Array.from(new Set(dto.ids));
+    if (ids.length === 0) {
+      return { processados: 0, atualizados: [], ignorados: [] };
+    }
 
-    const result = await this.databaseService.queryOne<{
-      aprovados: number;
-      rejeitados: number;
-      ignorados: number;
-    }>(
+    const auditColumns = await this.getPresencaAuditColumns();
+    const presencas = await this.databaseService.query<PresencaRow>(
       `
-        with selecionadas as (
-          select id
-          from presencas
-          where id = any($1::uuid[])
-            and academia_id = $2
-            and aprovacao_status = 'PENDENTE'
-        ),
-        atualizadas as (
-          update presencas p
-             set aprovacao_status = $3,
-                 aprovado_por = case when $3 = 'APROVADA' then $4 else null end,
-                 aprovado_em = case when $3 = 'APROVADA' then now() else null end,
-                 rejeitado_por = case when $3 = 'REJEITADA' then $4 else null end,
-                 rejeitado_em = case when $3 = 'REJEITADA' then now() else null end,
-                 aprovacao_observacao = $5
-           where p.id in (select id from selecionadas)
-           returning aprovacao_status
-        )
-        select
-          sum(case when aprovacao_status = 'APROVADA' then 1 else 0 end)::int as aprovados,
-          sum(case when aprovacao_status = 'REJEITADA' then 1 else 0 end)::int as rejeitados,
-          0::int as ignorados
-        from atualizadas;
+        select ${this.buildPresencaSelect(auditColumns)}
+        from presencas p
+        where p.id = any($1::uuid[]);
       `,
-      [dto.ids, currentUser.academiaId, decisao, currentUser.id, dto.observacao ?? null],
+      [ids],
     );
 
-    const totalProcessados =
-      (result?.aprovados ?? 0) + (result?.rejeitados ?? 0);
+    const presencaPorId = new Map(presencas.map((row) => [row.id, row]));
+    const pendentes: string[] = [];
+    const ignorados: { id: string; motivo: string }[] = [];
+
+    for (const id of ids) {
+      const presenca = presencaPorId.get(id);
+      if (!presenca) {
+        ignorados.push({ id, motivo: 'NAO_ENCONTRADA' });
+        continue;
+      }
+      if (presenca.academia_id !== currentUser.academiaId) {
+        ignorados.push({ id, motivo: 'FORA_DA_ACADEMIA' });
+        continue;
+      }
+      if (presenca.status !== 'PENDENTE') {
+        ignorados.push({
+          id,
+          motivo:
+            presenca.status === 'PRESENTE' || presenca.status === 'FALTA'
+              ? 'JA_DECIDIDA'
+              : 'NAO_PENDENTE',
+        });
+        continue;
+      }
+      pendentes.push(id);
+    }
+
+    const update = this.buildDecisionUpdate(
+      dto.decisao,
+      currentUser.id,
+      auditColumns,
+      dto.observacao,
+    );
+
+    const atualizadas =
+      pendentes.length > 0
+        ? await this.databaseService.query<PresencaRow>(
+            `
+              update presencas p
+                 set ${update.setClause}
+               where id = any($${update.params.length + 1}::uuid[])
+                 and academia_id = $${update.params.length + 2}
+                 and status = 'PENDENTE'
+               returning ${this.buildPresencaSelect(auditColumns, 'p')};
+            `,
+            [...update.params, pendentes, currentUser.academiaId],
+          )
+        : [];
+
+    const atualizadosIds = new Set(atualizadas.map((row) => row.id));
+
+    for (const id of pendentes) {
+      if (!atualizadosIds.has(id)) {
+        ignorados.push({ id, motivo: 'JA_DECIDIDA' });
+      }
+    }
+
     return {
-      totalProcessados,
-      aprovados: result?.aprovados ?? 0,
-      rejeitados: result?.rejeitados ?? 0,
-      ignorados: dto.ids.length - totalProcessados,
+      processados: atualizadosIds.size,
+      atualizados: Array.from(atualizadosIds),
+      ignorados,
     };
   }
 
@@ -207,12 +287,23 @@ export class PresencasService {
     filters?: { from?: string; to?: string; limit?: number },
   ): Promise<HistoricoPresencaDto[]> {
     await this.ensureAlunoScope(alunoId, currentUser);
+    const auditColumns = await this.getPresencaAuditColumns();
+    const auditSelectParts: string[] = [];
+    if (auditColumns.decididoEm) auditSelectParts.push('p.decidido_em');
+    if (auditColumns.decididoPor) auditSelectParts.push('p.decidido_por');
+    if (auditColumns.decisaoObservacao)
+      auditSelectParts.push('p.decisao_observacao');
+    if (auditColumns.aprovacaoObservacao)
+      auditSelectParts.push('p.aprovacao_observacao');
+    if (auditColumns.updatedAt) auditSelectParts.push('p.updated_at');
+    const auditSelect =
+      auditSelectParts.length > 0 ? `, ${auditSelectParts.join(', ')}` : '';
 
     const whereClauses = [
       'p.aluno_id = $1',
       'p.academia_id = $2',
       'a.academia_id = $2',
-      "p.aprovacao_status = 'APROVADA'",
+      "p.status <> 'PENDENTE'",
     ];
     const params: (string | number)[] = [alunoId, currentUser.academiaId];
     let paramIndex = params.length;
@@ -244,6 +335,11 @@ export class PresencasService {
       status: string;
       origem: 'MANUAL' | 'QR_CODE' | 'SISTEMA';
       criado_em: string;
+      decidido_em?: string | null;
+      decidido_por?: string | null;
+      decisao_observacao?: string | null;
+      aprovacao_observacao?: string | null;
+      updated_at?: string | null;
     }>(
       `
         select
@@ -255,6 +351,7 @@ export class PresencasService {
           p.status,
           p.origem,
           p.criado_em
+          ${auditSelect}
         from presencas p
         join aulas a on a.id = p.aula_id
         join turmas t on t.id = a.turma_id
@@ -274,7 +371,13 @@ export class PresencasService {
       tipoTreino: row.tipo_treino ?? null,
       status: row.status as HistoricoPresencaDto['status'],
       origem: row.origem,
-      aprovacaoStatus: 'APROVADA',
+      updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : undefined,
+      decididoEm: row.decidido_em
+        ? new Date(row.decidido_em).toISOString()
+        : undefined,
+      decididoPor: row.decidido_por ?? undefined,
+      decisaoObservacao:
+        row.decisao_observacao ?? row.aprovacao_observacao ?? undefined,
     }));
   }
 
@@ -370,21 +473,16 @@ export class PresencasService {
     return value;
   }
 
-  private async buscarPresenca(id: string): Promise<PresencaRow | null> {
+  private async buscarPresenca(
+    id: string,
+    auditColumns?: PresencaAuditColumns,
+  ): Promise<PresencaRow | null> {
+    const columns = auditColumns ?? (await this.getPresencaAuditColumns());
     return this.databaseService.queryOne<PresencaRow>(
       `
-        select
-          id,
-          academia_id,
-          aula_id,
-          aluno_id,
-          status,
-          origem,
-          criado_em,
-          registrado_por,
-          aprovacao_status
-        from presencas
-        where id = $1
+        select ${this.buildPresencaSelect(columns)}
+        from presencas p
+        where p.id = $1
         limit 1;
       `,
       [id],
@@ -395,6 +493,8 @@ export class PresencasService {
     presenca: PresencaRow,
     registradoPor?: string,
   ): CheckinResponseDto {
+    const aprovacaoStatus = presenca.aprovacao_status;
+
     return {
       id: presenca.id,
       aulaId: presenca.aula_id,
@@ -403,7 +503,224 @@ export class PresencasService {
       origem: presenca.origem,
       criadoEm: new Date(presenca.criado_em).toISOString(),
       registradoPor: registradoPor ?? presenca.registrado_por ?? undefined,
-      aprovacaoStatus: presenca.aprovacao_status,
+      aprovacaoStatus: aprovacaoStatus ?? undefined,
+      updatedAt: presenca.updated_at
+        ? new Date(presenca.updated_at).toISOString()
+        : undefined,
+      decididoEm: presenca.decidido_em
+        ? new Date(presenca.decidido_em).toISOString()
+        : undefined,
+      decididoPor: presenca.decidido_por ?? undefined,
+      decisaoObservacao:
+        presenca.decisao_observacao ?? presenca.aprovacao_observacao ?? undefined,
     };
+  }
+
+  private async getPresencaAuditColumns(): Promise<PresencaAuditColumns> {
+    if (!this.presencaAuditColumnsPromise) {
+    this.presencaAuditColumnsPromise = this.databaseService
+      .query<{ column_name: string }>(
+        `
+          select column_name
+          from information_schema.columns
+          where table_schema = 'public'
+            and table_name = 'presencas'
+            and column_name = any($1)
+        `,
+        [
+          [
+            'aprovacao_status',
+            'aprovado_por',
+            'aprovado_em',
+            'rejeitado_por',
+            'rejeitado_em',
+            'aprovacao_observacao',
+            'decidido_por',
+            'decidido_em',
+            'decisao_observacao',
+            'updated_at',
+          ],
+        ],
+      )
+      .then((rows) => {
+        const set = new Set(rows.map((row) => row.column_name));
+        return {
+          aprovacaoStatus: set.has('aprovacao_status'),
+          aprovadoPor: set.has('aprovado_por'),
+          aprovadoEm: set.has('aprovado_em'),
+          rejeitadoPor: set.has('rejeitado_por'),
+          rejeitadoEm: set.has('rejeitado_em'),
+          aprovacaoObservacao: set.has('aprovacao_observacao'),
+          decididoPor: set.has('decidido_por'),
+          decididoEm: set.has('decidido_em'),
+          decisaoObservacao: set.has('decisao_observacao'),
+          updatedAt: set.has('updated_at'),
+        };
+      })
+      .catch(() => ({
+        aprovacaoStatus: false,
+        aprovadoPor: false,
+        aprovadoEm: false,
+        rejeitadoPor: false,
+        rejeitadoEm: false,
+        aprovacaoObservacao: false,
+        decididoPor: false,
+        decididoEm: false,
+        decisaoObservacao: false,
+        updatedAt: false,
+      }));
+    }
+
+    return this.presencaAuditColumnsPromise;
+  }
+
+  private buildPresencaSelect(
+    auditColumns: PresencaAuditColumns,
+    alias = 'p',
+  ): string {
+    const columns = [
+      `${alias}.id`,
+      `${alias}.academia_id`,
+      `${alias}.aula_id`,
+      `${alias}.aluno_id`,
+      `${alias}.status`,
+      `${alias}.origem`,
+      `${alias}.criado_em`,
+      `${alias}.registrado_por`,
+    ];
+
+    if (auditColumns.aprovacaoStatus) {
+      columns.push(`${alias}.aprovacao_status`);
+    }
+    if (auditColumns.aprovadoPor) {
+      columns.push(`${alias}.aprovado_por`);
+    }
+    if (auditColumns.aprovadoEm) {
+      columns.push(`${alias}.aprovado_em`);
+    }
+    if (auditColumns.rejeitadoPor) {
+      columns.push(`${alias}.rejeitado_por`);
+    }
+    if (auditColumns.rejeitadoEm) {
+      columns.push(`${alias}.rejeitado_em`);
+    }
+    if (auditColumns.aprovacaoObservacao) {
+      columns.push(`${alias}.aprovacao_observacao`);
+    }
+    if (auditColumns.decididoPor) {
+      columns.push(`${alias}.decidido_por`);
+    }
+    if (auditColumns.decididoEm) {
+      columns.push(`${alias}.decidido_em`);
+    }
+    if (auditColumns.decisaoObservacao) {
+      columns.push(`${alias}.decisao_observacao`);
+    }
+    if (auditColumns.updatedAt) {
+      columns.push(`${alias}.updated_at`);
+    }
+
+    return columns.join(', ');
+  }
+
+  private buildDecisionUpdate(
+    decisao: DecisaoInput,
+    userId: string,
+    auditColumns: PresencaAuditColumns,
+    observacao?: string,
+  ): { setClause: string; params: any[] } {
+    const params: any[] = [];
+    const setClauses: string[] = [];
+
+    const decision = this.resolveDecision(decisao);
+    const finalStatus = decision.finalStatus;
+    params.push(finalStatus);
+    setClauses.push(`status = $${params.length}`);
+
+    if (auditColumns.aprovacaoStatus) {
+      params.push(decision.aprovacaoStatus);
+      setClauses.push(`aprovacao_status = $${params.length}`);
+    }
+
+    const needsUserParam =
+      auditColumns.decididoPor ||
+      auditColumns.aprovadoPor ||
+      auditColumns.rejeitadoPor;
+    let userParamIndex: number | null = null;
+
+    if (needsUserParam) {
+      params.push(userId);
+      userParamIndex = params.length;
+    }
+
+    if (auditColumns.decididoPor && userParamIndex) {
+      setClauses.push(`decidido_por = $${userParamIndex}`);
+    }
+    if (auditColumns.decididoEm) {
+      setClauses.push(`decidido_em = now()`);
+    }
+
+    if (auditColumns.aprovadoPor) {
+      setClauses.push(
+        decision.finalStatus === 'PRESENTE'
+          ? `aprovado_por = $${userParamIndex}`
+          : `aprovado_por = null`,
+      );
+    }
+    if (auditColumns.aprovadoEm) {
+      setClauses.push(
+        decision.finalStatus === 'PRESENTE'
+          ? `aprovado_em = now()`
+          : `aprovado_em = null`,
+      );
+    }
+    if (auditColumns.rejeitadoPor) {
+      setClauses.push(
+        decision.finalStatus === 'FALTA'
+          ? `rejeitado_por = $${userParamIndex}`
+          : `rejeitado_por = null`,
+      );
+    }
+    if (auditColumns.rejeitadoEm) {
+      setClauses.push(
+        decision.finalStatus === 'FALTA'
+          ? `rejeitado_em = now()`
+          : `rejeitado_em = null`,
+      );
+    }
+
+    const observacaoColumn = this.resolveObservacaoColumn(auditColumns);
+    if (observacaoColumn) {
+      params.push(observacao ?? null);
+      const obsIndex = params.length;
+      setClauses.push(`${observacaoColumn} = $${obsIndex}`);
+    }
+
+    return {
+      setClause: setClauses.join(', '),
+      params,
+    };
+  }
+
+  private resolveObservacaoColumn(
+    auditColumns: PresencaAuditColumns,
+  ): string | null {
+    if (auditColumns.decisaoObservacao) {
+      return 'decisao_observacao';
+    }
+    if (auditColumns.aprovacaoObservacao) {
+      return 'aprovacao_observacao';
+    }
+    return null;
+  }
+
+  private resolveDecision(decisao: DecisaoInput): {
+    finalStatus: 'PRESENTE' | 'FALTA';
+    aprovacaoStatus: 'APROVADA' | 'REJEITADA';
+  } {
+    if (decisao === 'APROVAR' || decisao === 'PRESENTE') {
+      return { finalStatus: 'PRESENTE', aprovacaoStatus: 'APROVADA' };
+    }
+    return { finalStatus: 'FALTA', aprovacaoStatus: 'REJEITADA' };
   }
 }

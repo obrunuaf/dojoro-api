@@ -27,4 +27,16 @@ export class PresencaPendenteDto {
 
   @ApiProperty()
   criadoEm: string;
+
+  @ApiProperty({ required: false, nullable: true })
+  decididoEm?: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  decididoPor?: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  decisaoObservacao?: string | null;
+
+  @ApiProperty({ required: false })
+  updatedAt?: string;
 }

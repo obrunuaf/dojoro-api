@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class HistoricoPresencaDto {
   @ApiProperty()
@@ -22,6 +22,21 @@ export class HistoricoPresencaDto {
   @ApiProperty({ enum: ['MANUAL', 'QR_CODE', 'SISTEMA'] })
   origem: 'MANUAL' | 'QR_CODE' | 'SISTEMA';
 
-  @ApiProperty({ enum: ['PENDENTE', 'APROVADA', 'REJEITADA'], required: false })
+  @ApiPropertyOptional({
+    enum: ['PENDENTE', 'APROVADA', 'REJEITADA'],
+    description: 'Campo legado; decisoes finais refletem em status (PRESENTE/FALTA).',
+  })
   aprovacaoStatus?: 'PENDENTE' | 'APROVADA' | 'REJEITADA';
+
+  @ApiPropertyOptional()
+  updatedAt?: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  decididoEm?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  decididoPor?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  decisaoObservacao?: string | null;
 }

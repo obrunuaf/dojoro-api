@@ -18,8 +18,8 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { CheckinResponseDto } from '../checkin/dtos/checkin-response.dto';
 import { CurrentUser, PresencasService } from './presencas.service';
-import { DecisaoPendenciaLoteDto } from './dtos/decisao-pendencia-lote.dto';
-import { DecisaoPendenciaDto } from './dtos/decisao-pendencia.dto';
+import { DecisaoLoteDto } from './dtos/decisao-lote.dto';
+import { DecisaoPresencaDto } from './dtos/decisao-presenca.dto';
 import { PresencaPendenteDto } from './dtos/presenca-pendente.dto';
 import { PendenciasQueryDto } from './dtos/pendencias-query.dto';
 
@@ -61,37 +61,39 @@ export class PresencasController {
 
   @Patch(':id/decisao')
   @Roles(UserRole.INSTRUTOR, UserRole.PROFESSOR, UserRole.ADMIN, UserRole.TI)
-  @ApiOperation({ summary: 'Decide pendencia de presenca (aprovar/rejeitar)' })
+  @ApiOperation({
+    summary: 'Decide pendencia de presenca (APROVAR -> PRESENTE, REJEITAR -> FALTA)',
+  })
   @ApiOkResponse({ type: CheckinResponseDto })
   async decidir(
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() dto: DecisaoPendenciaDto,
+    @Body() dto: DecisaoPresencaDto,
     @CurrentUserDecorator() user: CurrentUser,
   ): Promise<CheckinResponseDto> {
-    return this.presencasService.decidir(id, dto, user);
+    return this.presencasService.decidirPresenca(id, dto, user);
   }
 
   @Post('pendencias/lote')
   @Roles(UserRole.INSTRUTOR, UserRole.PROFESSOR, UserRole.ADMIN, UserRole.TI)
-  @ApiOperation({ summary: 'Decide pendencias em lote' })
+  @ApiOperation({
+    summary: 'Decide pendencias em lote (APROVAR -> PRESENTE, REJEITAR -> FALTA)',
+  })
   @ApiOkResponse({
     schema: {
       example: {
-        totalProcessados: 2,
-        aprovados: 2,
-        rejeitados: 0,
-        ignorados: 0,
+        processados: 2,
+        atualizados: ['015b0c97-1234-5678-90ab-1234567890ab'],
+        ignorados: [{ id: '...', motivo: 'nao encontrada' }],
       },
     },
   })
   async decidirLote(
-    @Body() dto: DecisaoPendenciaLoteDto,
+    @Body() dto: DecisaoLoteDto,
     @CurrentUserDecorator() user: CurrentUser,
   ): Promise<{
-    totalProcessados: number;
-    aprovados: number;
-    rejeitados: number;
-    ignorados: number;
+    processados: number;
+    atualizados: string[];
+    ignorados: { id: string; motivo: string }[];
   }> {
     return this.presencasService.decidirLote(dto, user);
   }

@@ -214,7 +214,7 @@ Notas:
   - `aulasNoGrauAtual`: conta `presencas` com status `PRESENTE` desde a ultima `graduacoes.data_graduacao` (ou `data_inicio` da matricula) na mesma academia.
   - `metaAulas`: `regras_graduacao.meta_aulas_no_grau` se > 0; se vazio/0 usa `aulas_minimas` se > 0; se ainda sem valor, fallback `DEFAULT_META_AULAS = 60`.
   - `progressoPercentual`: se `metaAulas <= 0` retorna `0`; senao `floor(aulasNoGrauAtual * 100 / metaAulas)` limitado a `100`.
-  - Seeds/guarda-corpos: `sql/003-seed-faixas-e-regras-base.sql` e `sql/002-seed-demo-completa.sql` trazem valores > 0 (inclui faixa preta) e o schema tem CHECK para bloquear zeros; use `NULL` para desativar uma meta.
+- Seeds/guarda-corpos: aplicar `sql/003-presencas-auditoria-decisao.sql` para colunas de auditoria de presencas e trigger `updated_at`; `sql/003-seed-faixas-e-regras-base.sql` e `sql/002-seed-demo-completa.sql` trazem valores > 0 (inclui faixa preta) e o schema tem CHECK para bloquear zeros; use `NULL` para desativar uma meta.
 - **Exemplo de resposta (seeds, sem aulas futuras apos 2025-11):**
   ```json
   {
@@ -389,7 +389,8 @@ Notas:
 - Escopo: `ALUNO` so enxerga o proprio historico/check-in; `STAFF` (INSTRUTOR/PROFESSOR/ADMIN/TI) so ve dados da `academiaId` do token.
 - Duplicidade: `presencas` tem unique `(aula_id, aluno_id)`; se ja existir retorna `422`.
 - QR Codes: `GET /aulas/:id/qrcode` (roles staff) gera `qrToken` seguro (`crypto.randomBytes`), persiste em `aulas.qr_token/qr_expires_at` e expira conforme `QR_TTL_MINUTES` (default `5` minutos).
-- Aprovacao: check-in do aluno sempre cria `aprovacao_status=PENDENTE` (`status=PRESENTE` quando QR, `status=PENDENTE` quando MANUAL). STAFF decide via `PATCH /v1/presencas/:id/decisao` ou `POST /v1/presencas/pendencias/lote`.
+- Decisao: apenas `status='PENDENTE'` pode ser decidido; `APROVAR|PRESENTE` -> `status=PRESENTE`, `REJEITAR|FALTA` -> `status=FALTA`; registra usuario/data/observacao se colunas existirem.
+- Auditoria: `criado_em` = momento do check-in; `decidido_em/decidido_por` = momento/responsavel da decisao; `decisao_observacao` (ou `aprovacao_observacao`) guarda observacao livre; `updated_at` e mantido por trigger em qualquer update.
 - Pendencias: filtros opcionais `date` (YYYY-MM-DD) ou `from`/`to` (ISO, sempre juntos). Sem query, usa “hoje” no `APP_TIMEZONE`. `from` sem `to` (ou vice-versa) -> `400`.
 - Erros: `401` sem token, `403` fora do escopo/academia, `422` para duplicidade/aula cancelada/QR invalido/expirado, `400` para query de data invalida.
 
@@ -401,22 +402,69 @@ Notas:
 #### 3.5.2 POST `/checkin` (ALUNO)
 - Payload: `{ "aulaId": "uuid", "tipo": "MANUAL" | "QR", "qrToken": "opcional" }`.
 - Validacoes: aula existe e pertence a academia do token; aluno tem matricula `ATIVA`; `tipo=QR` exige `qrToken` igual a `aulas.qr_token` e `qr_expires_at > now()`; bloqueia duplicidade (`422`).
-- Criacao: `MANUAL` -> `status=PENDENTE`, `origem=MANUAL`; `QR` -> `status=PRESENTE`, `origem=QR_CODE`; `registrado_por` = usuario do token; `aprovacao_status=PENDENTE`.
-- Resposta: `{ id, aulaId, alunoId, status, origem, criadoEm, registradoPor, aprovacaoStatus }`.
+- Criacao: `MANUAL` -> `status=PENDENTE`, `origem=MANUAL`; `QR` -> `status=PRESENTE`, `origem=QR_CODE`; `registrado_por` = usuario do token.
+- Resposta: `{ id, aulaId, alunoId, status, origem, criadoEm, registradoPor, aprovacaoStatus?, updatedAt?, decididoEm?, decididoPor?, decisaoObservacao? }` (campos extras so aparecem se a coluna existir).
 
 #### 3.5.3 GET `/presencas/pendencias` (STAFF)
 - Filtros opcionais: `date=YYYY-MM-DD` **ou** `from`/`to` (ISO, sempre juntos). Sem query, usa “hoje” (`APP_TIMEZONE`) com janela `[startUtc, endUtc)`.
-- Lista presencas com `aprovacao_status='PENDENTE'` para a academia do token (filtra por `aulas.data_inicio` no intervalo escolhido).
-- Retorna: `id`, `alunoId`, `alunoNome`, `aulaId`, `turmaNome`, `dataInicio`, `origem`, `status` (sempre `PENDENTE`), `criadoEm`, `aprovacaoStatus`.
+- Lista presencas com `status='PENDENTE'` para a academia do token (filtra por `aulas.data_inicio` no intervalo escolhido).
+- Retorna: `id`, `alunoId`, `alunoNome`, `aulaId`, `turmaNome`, `dataInicio`, `origem`, `status` (sempre `PENDENTE`), `criadoEm`, `decididoEm?`, `decididoPor?`, `decisaoObservacao?`, `updatedAt?`.
+- Exemplo:
+  ```json
+  {
+    "total": 1,
+    "itens": [
+      {
+        "id": "015b0c97-...",
+        "alunoId": "uuid-aluno",
+        "alunoNome": "Aluno Seed",
+        "aulaId": "uuid-aula",
+        "turmaNome": "Adulto Gi Noite",
+        "dataInicio": "2025-12-12T22:00:00.000Z",
+        "origem": "MANUAL",
+        "status": "PENDENTE",
+        "criadoEm": "2025-12-12T21:55:00.000Z",
+        "decididoEm": null,
+        "decididoPor": null,
+        "decisaoObservacao": null,
+        "updatedAt": "2025-12-12T21:55:00.000Z"
+      }
+    ]
+  }
+  ```
 
 #### 3.5.4 PATCH `/presencas/:id/decisao` (STAFF)
-- Payload: `{ "decisao": "APROVAR" | "REJEITAR", "observacao?": "string" }`.
-- Efeitos: `APROVAR` -> `aprovacao_status=APROVADA`, grava `aprovado_por`/`aprovado_em`; limpa campos de rejeicao. `REJEITAR` -> `aprovacao_status=REJEITADA`, grava `rejeitado_por`/`rejeitado_em`.
-- Valida `id` (UUID), escopo de academia, status pendente e registra quem decidiu.
+- Payload: `{ "decisao": "APROVAR" | "REJEITAR" | "PRESENTE" | "FALTA", "observacao?": "string" }`.
+- Efeitos: `APROVAR|PRESENTE` -> `status=PRESENTE`; `REJEITAR|FALTA` -> `status=FALTA`. Registra usuario/data/observacao se colunas existirem e retorna `409` se a presenca ja estiver decidida.
+- Valida `id` (UUID), escopo de academia e status pendente.
+- Exemplo de resposta:
+  ```json
+  {
+    "id": "015b0c97-...",
+    "aulaId": "uuid-aula",
+    "alunoId": "uuid-aluno",
+    "status": "PRESENTE",
+    "origem": "MANUAL",
+    "criadoEm": "2025-12-12T21:55:00.000Z",
+    "registradoPor": "uuid-staff",
+    "decididoEm": "2025-12-12T21:56:10.000Z",
+    "decididoPor": "uuid-staff",
+    "decisaoObservacao": "ok",
+    "updatedAt": "2025-12-12T21:56:10.000Z"
+  }
+  ```
 
 #### 3.5.5 POST `/presencas/pendencias/lote` (STAFF)
-- Payload: `{ "ids": ["uuid","uuid"], "decisao": "APROVAR" | "REJEITAR", "observacao?": "string" }`.
-- Resposta: `{ "totalProcessados": 2, "aprovados": 2, "rejeitados": 0, "ignorados": 0 }`.
+- Payload: `{ "ids": ["uuid","uuid"], "decisao": "APROVAR" | "REJEITAR" | "PRESENTE" | "FALTA", "observacao?": "string" }`.
+- Resposta: `{ "processados": 2, "atualizados": ["uuid"], "ignorados": [{ "id": "uuid", "motivo": "nao encontrada|fora da academia|status=..." }] }`.
+- Exemplo:
+  ```json
+  {
+    "processados": 1,
+    "atualizados": ["015b0c97-..."],
+    "ignorados": []
+  }
+  ```
 
 #### 3.5.6 GET `/alunos/:id/historico-presencas`
 - Roles: `ALUNO` (somente o proprio id) ou `STAFF` da mesma academia.
@@ -470,13 +518,13 @@ PRESENCA_ID="<id>"
 curl -X PATCH http://localhost:3000/v1/presencas/$PRESENCA_ID/decisao \
   -H "Authorization: Bearer $STAFF_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"decisao":"APROVAR","observacao":"Validado"}'
+  -d '{"decisao":"PRESENTE","observacao":"Validado"}'
 
 # decisao em lote
 curl -X POST http://localhost:3000/v1/presencas/pendencias/lote \
   -H "Authorization: Bearer $STAFF_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"ids":["'"$PRESENCA_ID"'"],"decisao":"REJEITAR","observacao":"Teste"}'
+  -d '{"ids":["'"$PRESENCA_ID"'"],"decisao":"FALTA","observacao":"Teste"}'
 ```
 
 ### 3.6 Configuracoes
