@@ -198,9 +198,10 @@ done
 ## Fluxo de check-in, pendencias e aprovacao
 - `GET /v1/checkin/disponiveis` (ALUNO): aulas do dia; ignora aulas/turmas deletadas e canceladas.
 - `POST /v1/checkin` (ALUNO): cria presenca `status=PRESENTE`, `aprovacao_status=PENDENTE` e `origem` conforme tipo (QR/MANUAL); bloqueia duplicidade.
-- `GET /v1/presencas/pendencias` (STAFF): pendencias do dia (timezone APP_TIMEZONE); retorna total + itens.
+- `GET /v1/presencas/pendencias` (STAFF): filtros opcionais (`date` **ou** `from`/`to`). Sem query, usa “hoje” no `APP_TIMEZONE`. Se enviar `from`, envie tambem `to`; `date` precisa estar em `YYYY-MM-DD`.
 - `PATCH /v1/presencas/:id/decisao` (STAFF): `decisao=APROVAR|REJEITAR`, registra quem/quando/observacao; pendencias aprovadas somem da lista.
 - `POST /v1/presencas/pendencias/lote` (STAFF): decide em lote (retorna contagem).
+- Seed: ja cria 1 presenca `PENDENTE` na aula “hoje” para `aluno.seed@example.com`, facilitando testes de aprovacao.
 
 Exemplos rapidos (staff):
 ```bash
@@ -208,6 +209,14 @@ PROF_TOKEN="<token-professor>"
 
 # pendencias de hoje
 curl http://localhost:3000/v1/presencas/pendencias \
+  -H "Authorization: Bearer $PROF_TOKEN"
+
+# pendencias com filtro de data (YYYY-MM-DD)
+curl "http://localhost:3000/v1/presencas/pendencias?date=2025-12-12" \
+  -H "Authorization: Bearer $PROF_TOKEN"
+
+# pendencias com range explicito (from/to sempre juntos, ISO)
+curl "http://localhost:3000/v1/presencas/pendencias?from=2025-12-12T03:00:00.000Z&to=2025-12-13T03:00:00.000Z" \
   -H "Authorization: Bearer $PROF_TOKEN"
 
 # aprovar uma pendencia
@@ -296,6 +305,7 @@ Dashboard staff (mesmo cenario, data fora do calendario das seeds):
 - Endpoints protegidos com `@ApiAuth()` no Swagger (`/v1/docs`); clique em **Authorize** e cole somente o `accessToken` do login.
 - Usa `APP_TIMEZONE` para a janela de "hoje" ([startUtc, endUtc)) e `QR_TTL_MINUTES` (default `5`) para o vencimento do QR.
 - ALUNO so enxerga a propria presenca; STAFF acessa apenas a academia do token.
+- Check-in do aluno sempre cria `aprovacao_status=PENDENTE` (`status=PRESENTE` quando QR, `status=PENDENTE` quando MANUAL). STAFF decide via `PATCH /v1/presencas/:id/decisao` ou `POST /v1/presencas/pendencias/lote`.
 
 Fluxo rapido (curl):
 ```bash
@@ -335,10 +345,16 @@ curl http://localhost:3000/v1/presencas/pendencias \
 
 # aprovar/ajustar presenca (STAFF)
 PRESENCA_ID="<id retornado em pendencias>"
-curl -X PATCH http://localhost:3000/v1/presencas/$PRESENCA_ID/status \
+curl -X PATCH http://localhost:3000/v1/presencas/$PRESENCA_ID/decisao \
   -H "Authorization: Bearer $STAFF_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"status":"PRESENTE"}'
+  -d '{"decisao":"APROVAR","observacao":"Validado"}'
+
+# decidir em lote
+curl -X POST http://localhost:3000/v1/presencas/pendencias/lote \
+  -H "Authorization: Bearer $STAFF_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"ids":["'"$PRESENCA_ID"'"],"decisao":"REJEITAR","observacao":"Teste"}'
 
 # historico do aluno (ALUNO so o proprio; STAFF mesma academia)
 ALUNO_ID="<id do aluno>"
@@ -356,6 +372,6 @@ curl "http://localhost:3000/v1/alunos/$ALUNO_ID/historico-presencas?from=2025-01
 - Se alterar `JWT_SECRET`, todos os tokens antigos (emitidos antes da troca) deixam de funcionar.
 
 ## Estado atual da API
-- **Real (Postgres):** `POST /v1/auth/login`, `GET /v1/auth/me`, `GET /v1/auth/convite/:codigo`, `POST /v1/auth/register`, `GET /v1/home`, `GET /v1/dashboard/aluno`, `GET /v1/dashboard/staff`, `GET /v1/alunos`, `GET /v1/alunos/:id`, `GET /v1/alunos/:id/evolucao`, `GET /v1/alunos/:id/historico-presencas`, `GET /v1/turmas`, `GET /v1/turmas/:id`, `POST /v1/turmas`, `PATCH /v1/turmas/:id`, `DELETE /v1/turmas/:id`, `GET /v1/aulas/hoje`, `GET /v1/aulas/:id/qrcode`, `GET /v1/checkin/disponiveis`, `POST /v1/checkin`, `GET /v1/presencas/pendencias`, `PATCH /v1/presencas/:id/status`.
+- **Real (Postgres):** `POST /v1/auth/login`, `GET /v1/auth/me`, `GET /v1/auth/convite/:codigo`, `POST /v1/auth/register`, `GET /v1/home`, `GET /v1/dashboard/aluno`, `GET /v1/dashboard/staff`, `GET /v1/alunos`, `GET /v1/alunos/:id`, `GET /v1/alunos/:id/evolucao`, `GET /v1/alunos/:id/historico-presencas`, `GET /v1/turmas`, `GET /v1/turmas/:id`, `POST /v1/turmas`, `PATCH /v1/turmas/:id`, `DELETE /v1/turmas/:id`, `POST /v1/turmas/:id/restore`, `GET /v1/aulas/hoje`, `GET /v1/aulas/:id/qrcode`, `GET /v1/checkin/disponiveis`, `POST /v1/checkin`, `GET /v1/presencas/pendencias`, `PATCH /v1/presencas/:id/decisao`, `POST /v1/presencas/pendencias/lote`.
 - **Stub/mock (retorno provisorio):** `GET /v1/config/*`, `POST /v1/invites`, `POST /v1/graduacoes`, `POST /v1/auth/refresh`, `POST /v1/auth/forgot-password`, `POST /v1/auth/reset-password`.
 - Prefixo global `/v1`; Swagger em `/v1/docs`.

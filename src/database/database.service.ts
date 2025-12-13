@@ -80,6 +80,32 @@ export class DatabaseService implements OnModuleDestroy {
     };
   }
 
+  async getDayBoundsUtc(date: string, tz: string): Promise<{
+    startUtc: Date;
+    endUtc: Date;
+  }> {
+    const row = await this.queryOne<{
+      start_utc: string;
+      end_utc: string;
+    }>(
+      `
+        select
+          (($1::date)::timestamp at time zone $2) as start_utc,
+          ((($1::date)::timestamp + interval '1 day') at time zone $2) as end_utc;
+      `,
+      [date, tz],
+    );
+
+    if (!row?.start_utc || !row?.end_utc) {
+      throw new Error('Failed to compute bounds for date');
+    }
+
+    return {
+      startUtc: new Date(row.start_utc),
+      endUtc: new Date(row.end_utc),
+    };
+  }
+
   async onModuleDestroy() {
     await this.pool.end();
   }

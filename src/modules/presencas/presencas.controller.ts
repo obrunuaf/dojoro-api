@@ -21,6 +21,7 @@ import { CurrentUser, PresencasService } from './presencas.service';
 import { DecisaoPendenciaLoteDto } from './dtos/decisao-pendencia-lote.dto';
 import { DecisaoPendenciaDto } from './dtos/decisao-pendencia.dto';
 import { PresencaPendenteDto } from './dtos/presenca-pendente.dto';
+import { PendenciasQueryDto } from './dtos/pendencias-query.dto';
 
 @ApiTags('Presencas')
 @ApiAuth()
@@ -53,11 +54,9 @@ export class PresencasController {
   })
   async listarPendencias(
     @CurrentUserDecorator() user: CurrentUser,
-    @Query('date') date?: string,
-    @Query('from') from?: string,
-    @Query('to') to?: string,
+    @Query() query: PendenciasQueryDto,
   ): Promise<{ total: number; itens: PresencaPendenteDto[] }> {
-    return this.presencasService.listarPendencias(user, { date, from, to });
+    return this.presencasService.listarPendencias(user, query);
   }
 
   @Patch(':id/decisao')

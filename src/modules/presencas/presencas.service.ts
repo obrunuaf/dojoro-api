@@ -25,6 +25,7 @@ type PendenciaRow = {
   aluno_id: string;
   aluno_nome: string;
   aula_id: string;
+  status: string;
   turma_nome: string;
   data_inicio: string;
   origem: 'MANUAL' | 'QR_CODE' | 'SISTEMA';
@@ -60,6 +61,7 @@ export class PresencasService {
           p.aluno_id,
           u.nome_completo as aluno_nome,
           p.aula_id,
+          p.status,
           t.nome as turma_nome,
           a.data_inicio,
           p.origem,
@@ -70,7 +72,7 @@ export class PresencasService {
         join usuarios u on u.id = p.aluno_id
         where p.academia_id = $1
           and a.academia_id = $1
-          and p.aprovacao_status = 'PENDENTE'
+          and p.status = 'PENDENTE'
           and a.data_inicio >= $2
           and a.data_inicio < $3
         order by a.data_inicio asc, p.criado_em asc
@@ -89,9 +91,8 @@ export class PresencasService {
         turmaNome: row.turma_nome,
         dataInicio: new Date(row.data_inicio).toISOString(),
         origem: row.origem,
-        status: 'PENDENTE',
+        status: row.status as PresencaPendenteDto['status'],
         criadoEm: new Date(row.criado_em).toISOString(),
-        aprovacaoStatus: 'PENDENTE',
       })),
     };
   }
@@ -283,28 +284,34 @@ export class PresencasService {
     to?: string;
   }): Promise<{ startUtc: Date; endUtc: Date }> {
     const tz = this.databaseService.getAppTimezone();
-    if (!filters?.date && !filters?.from && !filters?.to) {
-      return this.databaseService.getTodayBoundsUtc(tz);
+
+    const hasFrom = !!filters?.from;
+    const hasTo = !!filters?.to;
+
+    if (hasFrom !== hasTo) {
+      throw new BadRequestException('from e to devem ser enviados juntos');
+    }
+
+    if (hasFrom && filters?.from && filters?.to) {
+      const from = new Date(filters.from);
+      const to = new Date(filters.to);
+      if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+        throw new BadRequestException('from/to invalidos');
+      }
+      if (from.getTime() >= to.getTime()) {
+        throw new BadRequestException('from deve ser menor que to');
+      }
+      return { startUtc: from, endUtc: to };
     }
 
     if (filters?.date) {
-      const start = new Date(`${filters.date}T00:00:00.000Z`);
-      if (Number.isNaN(start.getTime())) {
-        throw new BadRequestException('date invalida');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(filters.date)) {
+        throw new BadRequestException('date deve estar no formato YYYY-MM-DD');
       }
-      const end = new Date(start);
-      end.setUTCDate(end.getUTCDate() + 1);
-      return { startUtc: start, endUtc: end };
+      return this.databaseService.getDayBoundsUtc(filters.date, tz);
     }
 
-    const from = filters?.from ? new Date(filters.from) : null;
-    const to = filters?.to ? new Date(filters.to) : null;
-    if ((from && Number.isNaN(from.getTime())) || (to && Number.isNaN(to.getTime()))) {
-      throw new BadRequestException('from/to invalidos');
-    }
-    const startUtc = from ?? (await this.databaseService.getTodayBoundsUtc(tz)).startUtc;
-    const endUtc = to ?? (await this.databaseService.getTodayBoundsUtc(tz)).endUtc;
-    return { startUtc, endUtc };
+    return this.databaseService.getTodayBoundsUtc(tz);
   }
 
   private async ensureAlunoScope(

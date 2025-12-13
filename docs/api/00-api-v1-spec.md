@@ -389,8 +389,9 @@ Notas:
 - Escopo: `ALUNO` so enxerga o proprio historico/check-in; `STAFF` (INSTRUTOR/PROFESSOR/ADMIN/TI) so ve dados da `academiaId` do token.
 - Duplicidade: `presencas` tem unique `(aula_id, aluno_id)`; se ja existir retorna `422`.
 - QR Codes: `GET /aulas/:id/qrcode` (roles staff) gera `qrToken` seguro (`crypto.randomBytes`), persiste em `aulas.qr_token/qr_expires_at` e expira conforme `QR_TTL_MINUTES` (default `5` minutos).
-- Status x origem: `MANUAL` cria `PENDENTE` (`origem=MANUAL`), `QR` cria `PRESENTE` (`origem=QR_CODE`); PATCH atualiza `status` e `registrado_por` (usuario staff).
-- Erros: `401` sem token, `403` fora do escopo/academia, `422` para duplicidade, aula cancelada, QR invalido/expirado ou payload incorreto.
+- Aprovacao: check-in do aluno sempre cria `aprovacao_status=PENDENTE` (`status=PRESENTE` quando QR, `status=PENDENTE` quando MANUAL). STAFF decide via `PATCH /v1/presencas/:id/decisao` ou `POST /v1/presencas/pendencias/lote`.
+- Pendencias: filtros opcionais `date` (YYYY-MM-DD) ou `from`/`to` (ISO, sempre juntos). Sem query, usa “hoje” no `APP_TIMEZONE`. `from` sem `to` (ou vice-versa) -> `400`.
+- Erros: `401` sem token, `403` fora do escopo/academia, `422` para duplicidade/aula cancelada/QR invalido/expirado, `400` para query de data invalida.
 
 #### 3.5.1 GET `/checkin/disponiveis` (ALUNO)
 - Lista aulas de hoje (`aulas.status <> 'CANCELADA'`) da academia do token e indica se o aluno ja possui presenca (`jaFezCheckin`).
@@ -400,23 +401,29 @@ Notas:
 #### 3.5.2 POST `/checkin` (ALUNO)
 - Payload: `{ "aulaId": "uuid", "tipo": "MANUAL" | "QR", "qrToken": "opcional" }`.
 - Validacoes: aula existe e pertence a academia do token; aluno tem matricula `ATIVA`; `tipo=QR` exige `qrToken` igual a `aulas.qr_token` e `qr_expires_at > now()`; bloqueia duplicidade (`422`).
-- Criacao: `MANUAL` -> `status=PENDENTE`, `origem=MANUAL`; `QR` -> `status=PRESENTE`, `origem=QR_CODE`; `registrado_por` = usuario do token.
-- Resposta: `{ id, aulaId, alunoId, status, origem, criadoEm, registradoPor }`.
+- Criacao: `MANUAL` -> `status=PENDENTE`, `origem=MANUAL`; `QR` -> `status=PRESENTE`, `origem=QR_CODE`; `registrado_por` = usuario do token; `aprovacao_status=PENDENTE`.
+- Resposta: `{ id, aulaId, alunoId, status, origem, criadoEm, registradoPor, aprovacaoStatus }`.
 
 #### 3.5.3 GET `/presencas/pendencias` (STAFF)
-- Lista presencas `status='PENDENTE'` de hoje (usa janela de hoje via `aulas.data_inicio`) para a academia do token.
-- Retorna: `id`, `alunoId`, `alunoNome`, `aulaId`, `turmaNome`, `dataInicio`, `origem`, `status`.
+- Filtros opcionais: `date=YYYY-MM-DD` **ou** `from`/`to` (ISO, sempre juntos). Sem query, usa “hoje” (`APP_TIMEZONE`) com janela `[startUtc, endUtc)`.
+- Lista presencas com `aprovacao_status='PENDENTE'` para a academia do token (filtra por `aulas.data_inicio` no intervalo escolhido).
+- Retorna: `id`, `alunoId`, `alunoNome`, `aulaId`, `turmaNome`, `dataInicio`, `origem`, `status` (sempre `PENDENTE`), `criadoEm`, `aprovacaoStatus`.
 
-#### 3.5.4 PATCH `/presencas/:id/status` (STAFF)
-- Payload: `{ "status": "PRESENTE" | "FALTA" | "JUSTIFICADA" }`.
-- Valida `id` (UUID) e academia; atualiza `status` e `registrado_por` com o staff do token. Resposta devolve a presenca atualizada.
+#### 3.5.4 PATCH `/presencas/:id/decisao` (STAFF)
+- Payload: `{ "decisao": "APROVAR" | "REJEITAR", "observacao?": "string" }`.
+- Efeitos: `APROVAR` -> `aprovacao_status=APROVADA`, grava `aprovado_por`/`aprovado_em`; limpa campos de rejeicao. `REJEITAR` -> `aprovacao_status=REJEITADA`, grava `rejeitado_por`/`rejeitado_em`.
+- Valida `id` (UUID), escopo de academia, status pendente e registra quem decidiu.
 
-#### 3.5.5 GET `/alunos/:id/historico-presencas`
+#### 3.5.5 POST `/presencas/pendencias/lote` (STAFF)
+- Payload: `{ "ids": ["uuid","uuid"], "decisao": "APROVAR" | "REJEITAR", "observacao?": "string" }`.
+- Resposta: `{ "totalProcessados": 2, "aprovados": 2, "rejeitados": 0, "ignorados": 0 }`.
+
+#### 3.5.6 GET `/alunos/:id/historico-presencas`
 - Roles: `ALUNO` (somente o proprio id) ou `STAFF` da mesma academia.
 - Query opcional: `from=YYYY-MM-DD`, `to=YYYY-MM-DD` (limite padrao 50 itens).
 - Retorna: `presencaId`, `aulaId`, `dataInicio`, `turmaNome`, `tipoTreino`, `status`, `origem`.
 
-#### 3.5.6 GET `/aulas/:id/qrcode` (STAFF)
+#### 3.5.7 GET `/aulas/:id/qrcode` (STAFF)
 - Gera/atualiza `qr_token` e `qr_expires_at` da aula (academia validada). TTL em minutos via env `QR_TTL_MINUTES` (fallback 5).
 - Resposta: `{ "aulaId": "...", "qrToken": "...", "expiresAt": "..." }` mais contexto (`turma`, `horario`).
 
@@ -448,16 +455,28 @@ curl -X POST http://localhost:3000/v1/checkin \
   -H "Content-Type: application/json" \
   -d "{\"aulaId\":\"$AULA_ID\",\"tipo\":\"MANUAL\"}"
 
-# pendencias (staff)
+# pendencias (staff, default hoje no APP_TIMEZONE)
 curl http://localhost:3000/v1/presencas/pendencias \
   -H "Authorization: Bearer $STAFF_TOKEN"
 
-# aprovar/ajustar (staff)
+# pendencias com filtros opcionais
+curl "http://localhost:3000/v1/presencas/pendencias?date=2025-12-12" \
+  -H "Authorization: Bearer $STAFF_TOKEN"
+curl "http://localhost:3000/v1/presencas/pendencias?from=2025-12-12T03:00:00.000Z&to=2025-12-13T03:00:00.000Z" \
+  -H "Authorization: Bearer $STAFF_TOKEN"
+
+# aprovar/rejeitar (staff)
 PRESENCA_ID="<id>"
-curl -X PATCH http://localhost:3000/v1/presencas/$PRESENCA_ID/status \
+curl -X PATCH http://localhost:3000/v1/presencas/$PRESENCA_ID/decisao \
   -H "Authorization: Bearer $STAFF_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"status":"PRESENTE"}'
+  -d '{"decisao":"APROVAR","observacao":"Validado"}'
+
+# decisao em lote
+curl -X POST http://localhost:3000/v1/presencas/pendencias/lote \
+  -H "Authorization: Bearer $STAFF_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"ids":["'"$PRESENCA_ID"'"],"decisao":"REJEITAR","observacao":"Teste"}'
 ```
 
 ### 3.6 Configuracoes
@@ -503,6 +522,7 @@ Todas as contas abaixo pertencem a **Academia Seed BJJ** (scripts em `sql/002-se
 - `professor.seed@example.com` / `SenhaProfessor123` — PROFESSOR (tambem ALUNO)
 - `admin.seed@example.com` / `SenhaAdmin123` — ADMIN (tambem ALUNO)
 - `ti.seed@example.com` / `SenhaTi123` — TI (tambem ALUNO)
+- O seed garante uma aula "hoje" (timezone `America/Sao_Paulo`) e uma presenca `PENDENTE` para `aluno.seed@example.com`, facilitando testar `/presencas/pendencias` imediatamente.
 
 > Nota: se `JWT_SECRET` for alterado, todos os tokens emitidos antes da troca deixam de ser validos.
 
