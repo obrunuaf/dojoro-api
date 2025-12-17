@@ -16,6 +16,7 @@ import { CurrentUser as CurrentUserDecorator } from '../../common/decorators/use
 import { UserRole } from '../../common/enums/user-role.enum';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { AcademiaStatusGuard } from '../../common/guards/academia-status.guard';
 import { CheckinResponseDto } from '../checkin/dtos/checkin-response.dto';
 import { CurrentUser, PresencasService } from './presencas.service';
 import { DecisaoLoteDto } from './dtos/decisao-lote.dto';
@@ -25,7 +26,7 @@ import { PendenciasQueryDto } from './dtos/pendencias-query.dto';
 
 @ApiTags('Presencas')
 @ApiAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, AcademiaStatusGuard, RolesGuard)
 @Controller('presencas')
 export class PresencasController {
   constructor(private readonly presencasService: PresencasService) {}

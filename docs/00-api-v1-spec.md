@@ -311,6 +311,45 @@ curl http://localhost:3000/v1/auth/me \
   }
   ```
 
+### 3.4 Academia (Settings)
+
+#### 3.4.1 GET `/academia/me`
+
+- **Descricao**: retorna dados da academia do usuario autenticado.
+- **Auth**: Bearer JWT (PROFESSOR+)
+- **Resposta**:
+  ```json
+  {
+    "id": "uuid",
+    "nome": "Academia Seed BJJ",
+    "codigo": "ACAD46AF",
+    "codigoConvite": "BJJ-UNIT1",
+    "ativo": true,
+    "endereco": "Rua das Artes Marciais, 123",
+    "telefone": "+5511999999999",
+    "email": "contato@academiabjj.com",
+    "logoUrl": "https://example.com/logo.png",
+    "criadoEm": "2025-01-01T00:00:00.000Z"
+  }
+  ```
+
+#### 3.4.2 PATCH `/academia/me`
+
+- **Descricao**: atualiza dados da academia.
+- **Auth**: Bearer JWT (ADMIN+)
+- **Payload** (todos opcionais):
+  ```json
+  {
+    "nome": "Novo Nome",
+    "ativo": true,
+    "endereco": "Novo endereco",
+    "telefone": "+5511888888888",
+    "email": "novo@email.com",
+    "logoUrl": "https://cdn.example.com/logo.png"
+  }
+  ```
+- **Resposta**: mesmo formato do GET
+
 ### 3.2 Dashboards & Home
 
 #### 3.2.0 GET `/home`

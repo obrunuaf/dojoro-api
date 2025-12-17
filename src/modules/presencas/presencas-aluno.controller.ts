@@ -13,12 +13,13 @@ import { CurrentUser as CurrentUserDecorator } from '../../common/decorators/use
 import { UserRole } from '../../common/enums/user-role.enum';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { AcademiaStatusGuard } from '../../common/guards/academia-status.guard';
 import { CurrentUser, PresencasService } from './presencas.service';
 import { HistoricoPresencaDto } from './dtos/historico-presenca.dto';
 
 @ApiTags('Presencas')
 @ApiAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, AcademiaStatusGuard, RolesGuard)
 @Controller('alunos')
 export class AlunoPresencasController {
   constructor(private readonly presencasService: PresencasService) {}

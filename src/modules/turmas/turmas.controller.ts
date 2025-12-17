@@ -23,6 +23,7 @@ import { CurrentUser } from '../../common/decorators/user.decorator';
 import { UserRole } from '../../common/enums/user-role.enum';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { AcademiaStatusGuard } from '../../common/guards/academia-status.guard';
 import { CreateTurmaDto } from './dtos/create-turma.dto';
 import { ListTurmasQueryDto } from './dtos/list-turmas-query.dto';
 import { TurmaResponseDto } from './dtos/turma-response.dto';
@@ -34,7 +35,7 @@ import {
 
 @ApiTags('Turmas')
 @ApiAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, AcademiaStatusGuard, RolesGuard)
 @Controller('turmas')
 export class TurmasController {
   constructor(private readonly turmasService: TurmasService) {}

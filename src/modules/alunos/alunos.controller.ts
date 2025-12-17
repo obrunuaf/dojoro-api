@@ -12,6 +12,7 @@ import { CurrentUser } from '../../common/decorators/user.decorator';
 import { UserRole } from '../../common/enums/user-role.enum';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { AcademiaStatusGuard } from '../../common/guards/academia-status.guard';
 import {
   AlunosService,
   CurrentUser as CurrentUserPayload,
@@ -22,7 +23,7 @@ import { EvolucaoAlunoDto } from './dtos/evolucao-aluno.dto';
 
 @ApiTags('Alunos')
 @ApiAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, AcademiaStatusGuard, RolesGuard)
 @Controller('alunos')
 export class AlunosController {
   constructor(private readonly alunosService: AlunosService) {}

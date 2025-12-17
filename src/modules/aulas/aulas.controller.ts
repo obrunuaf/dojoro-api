@@ -24,6 +24,7 @@ import { CurrentUser } from '../../common/decorators/user.decorator';
 import { UserRole } from '../../common/enums/user-role.enum';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { AcademiaStatusGuard } from '../../common/guards/academia-status.guard';
 import { Throttle } from '@nestjs/throttler';
 import {
   AulasService,
@@ -45,7 +46,7 @@ import { UpdateAulaDto } from './dtos/update-aula.dto';
 
 @ApiTags('Aulas')
 @ApiAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, AcademiaStatusGuard, RolesGuard)
 @Controller('aulas')
 export class AulasController {
   constructor(private readonly aulasService: AulasService) {}

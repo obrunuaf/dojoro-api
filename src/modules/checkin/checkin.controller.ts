@@ -11,6 +11,7 @@ import { CurrentUser as CurrentUserDecorator } from '../../common/decorators/use
 import { UserRole } from '../../common/enums/user-role.enum';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { AcademiaStatusGuard } from '../../common/guards/academia-status.guard';
 import { Throttle } from '@nestjs/throttler';
 import { CheckinService, CurrentUser } from './checkin.service';
 import { CheckinDisponivelDto } from './dtos/checkin-disponivel.dto';
@@ -19,7 +20,7 @@ import { CreateCheckinDto } from './dtos/create-checkin.dto';
 
 @ApiTags('Checkin')
 @ApiAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, AcademiaStatusGuard, RolesGuard)
 @Controller('checkin')
 export class CheckinController {
   constructor(private readonly checkinService: CheckinService) {}

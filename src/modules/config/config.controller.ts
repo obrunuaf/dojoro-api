@@ -10,6 +10,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../../common/enums/user-role.enum';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { AcademiaStatusGuard } from '../../common/guards/academia-status.guard';
 import { ConfigService, CurrentUser as CurrentUserPayload } from './config.service';
 import { RegraGraduacaoDto } from './dtos/regra-graduacao.dto';
 import { TipoTreinoDto } from './dtos/tipo-treino.dto';
@@ -17,7 +18,7 @@ import { UpdateRegraGraduacaoDto } from './dtos/update-regra-graduacao.dto';
 
 @ApiTags('Config')
 @ApiAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, AcademiaStatusGuard, RolesGuard)
 @Controller('config')
 export class ConfigController {
   constructor(private readonly configService: ConfigService) {}

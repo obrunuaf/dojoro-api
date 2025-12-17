@@ -14,6 +14,7 @@ import { CurrentUser } from '../../common/decorators/user.decorator';
 import { UserRole } from '../../common/enums/user-role.enum';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { AcademiaStatusGuard } from '../../common/guards/academia-status.guard';
 import { MatriculasService } from './matriculas.service';
 import { MatriculaPendenteDto } from './dtos/matricula-pendente.dto';
 import {
@@ -23,7 +24,7 @@ import {
 
 @ApiTags('Matriculas')
 @ApiAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, AcademiaStatusGuard, RolesGuard)
 @Controller('staff/matriculas')
 export class MatriculasController {
   constructor(private readonly matriculasService: MatriculasService) {}
