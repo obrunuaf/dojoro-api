@@ -17,7 +17,14 @@ import { LoginDto } from './dtos/login.dto';
 import { MeResponseDto } from './dtos/me-response.dto';
 import { RefreshTokenDto } from './dtos/refresh-token.dto';
 import { RegisterDto } from './dtos/register.dto';
-import { ResetPasswordDto } from './dtos/reset-password.dto';
+import { SignupDto } from './dtos/signup.dto';
+import {
+  VerifyOtpDto,
+  VerifyOtpResponseDto,
+  ResetPasswordWithOtpDto,
+  ForgotPasswordResponseDto,
+  ResetPasswordResponseDto,
+} from './dtos/otp.dto';
 import { AuthService } from './auth.service';
 
 @ApiTags('Auth')
@@ -67,6 +74,13 @@ export class AuthController {
     return this.authService.register(dto);
   }
 
+  @Post('signup')
+  @ApiOperation({ summary: 'Cadastro self-service com codigo da academia' })
+  @ApiCreatedResponse({ type: AuthTokensDto })
+  async signup(@Body() dto: SignupDto): Promise<AuthTokensDto> {
+    return this.authService.signup(dto);
+  }
+
   @Post('refresh')
   @ApiOperation({ summary: 'Renova tokens' })
   @ApiOkResponse({ type: AuthTokensDto })
@@ -75,16 +89,27 @@ export class AuthController {
   }
 
   @Post('forgot-password')
-  @ApiOperation({ summary: 'Inicia recuperacao de senha' })
-  @ApiOkResponse({ schema: { example: { message: 'Token enviado' } } })
-  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+  @Throttle({ default: { limit: 3, ttl: 60 } })
+  @ApiOperation({ summary: 'Inicia recuperacao de senha (envia OTP por email)' })
+  @ApiOkResponse({ type: ForgotPasswordResponseDto })
+  async forgotPassword(@Body() dto: ForgotPasswordDto): Promise<ForgotPasswordResponseDto> {
     return this.authService.forgotPassword(dto);
   }
 
+  @Post('verify-otp')
+  @Throttle({ default: { limit: 5, ttl: 60 } })
+  @ApiOperation({ summary: 'Verifica codigo OTP (sem consumir)' })
+  @ApiOkResponse({ type: VerifyOtpResponseDto })
+  async verifyOtp(@Body() dto: VerifyOtpDto): Promise<VerifyOtpResponseDto> {
+    return this.authService.verifyOtp(dto);
+  }
+
   @Post('reset-password')
-  @ApiOperation({ summary: 'Redefine senha com token' })
-  @ApiOkResponse({ schema: { example: { message: 'Senha redefinida' } } })
-  async resetPassword(@Body() dto: ResetPasswordDto) {
+  @Throttle({ default: { limit: 3, ttl: 60 } })
+  @ApiOperation({ summary: 'Redefine senha com email e codigo OTP' })
+  @ApiOkResponse({ type: ResetPasswordResponseDto })
+  async resetPassword(@Body() dto: ResetPasswordWithOtpDto): Promise<ResetPasswordResponseDto> {
     return this.authService.resetPassword(dto);
   }
 }
+

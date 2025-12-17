@@ -28,6 +28,7 @@ export type UserProfileRow = {
   matricula_data_fim: string | null;
   academia_id: string;
   academia_nome: string;
+  data_nascimento: string | null;
 };
 
 @Injectable()
@@ -99,6 +100,7 @@ export class AuthRepository {
         u.status as usuario_status,
         u.faixa_atual_slug,
         u.grau_atual,
+        u.data_nascimento,
         up.papel,
         m.status as matricula_status,
         m.data_inicio as matricula_data_inicio,
@@ -152,6 +154,24 @@ export class AuthRepository {
     }>(query, [token]);
   }
 
+  /**
+   * Find academia by public code (for self-service signup)
+   */
+  async findAcademiaByCode(codigo: string): Promise<{
+    id: string;
+    nome: string;
+    codigo: string;
+  } | null> {
+    return this.databaseService.queryOne<{
+      id: string;
+      nome: string;
+      codigo: string;
+    }>(
+      `SELECT id, nome, codigo FROM academias WHERE UPPER(codigo) = UPPER($1) LIMIT 1`,
+      [codigo],
+    );
+  }
+
   async markInviteAsUsed(inviteId: string, usuarioId: string): Promise<void> {
     const query = `
       update convites
@@ -171,6 +191,7 @@ export class AuthRepository {
     aceitouTermos: boolean;
     academiaId: string;
     papel: UserRole;
+    matriculaStatus?: 'ATIVA' | 'PENDENTE';
   }): Promise<{
     usuario_id: string;
     academia_id: string;
@@ -220,15 +241,16 @@ export class AuthRepository {
         [params.academiaId],
       ))?.next ?? 1;
 
+    const status = params.matriculaStatus ?? 'ATIVA';
     const matricula = await this.databaseService.queryOne<{
       numero_matricula: number;
     }>(
       `
-        insert into matriculas (usuario_id, academia_id, numero_matricula)
-        values ($1, $2, $3)
+        insert into matriculas (usuario_id, academia_id, numero_matricula, status)
+        values ($1, $2, $3, $4)
         returning numero_matricula;
       `,
-      [usuario.id, params.academiaId, nextMatricula],
+      [usuario.id, params.academiaId, nextMatricula, status],
     );
 
     return {
@@ -236,5 +258,120 @@ export class AuthRepository {
       academia_id: params.academiaId,
       numero_matricula: matricula?.numero_matricula ?? nextMatricula,
     };
+  }
+
+  // =============== PASSWORD RESET OTP METHODS ===============
+
+  /**
+   * Invalidates any existing tokens for user and creates a new one
+   */
+  async createPasswordResetToken(
+    usuarioId: string,
+    codigoHash: string,
+    expiresAt: Date,
+  ): Promise<{ id: string }> {
+    // Invalidate all previous tokens for this user
+    await this.databaseService.query(
+      `UPDATE password_reset_tokens SET used_at = now() WHERE usuario_id = $1 AND used_at IS NULL`,
+      [usuarioId],
+    );
+
+    // Create new token
+    return this.databaseService.queryOne<{ id: string }>(
+      `
+        INSERT INTO password_reset_tokens (usuario_id, codigo_hash, expires_at)
+        VALUES ($1, $2, $3)
+        RETURNING id;
+      `,
+      [usuarioId, codigoHash, expiresAt],
+    ) as Promise<{ id: string }>;
+  }
+
+  /**
+   * Find valid (not expired, not used) token for user
+   */
+  async findValidPasswordResetToken(
+    usuarioId: string,
+    codigoHash: string,
+  ): Promise<{ id: string; expires_at: Date } | null> {
+    return this.databaseService.queryOne<{ id: string; expires_at: Date }>(
+      `
+        SELECT id, expires_at
+        FROM password_reset_tokens
+        WHERE usuario_id = $1
+          AND codigo_hash = $2
+          AND used_at IS NULL
+          AND expires_at > now()
+        LIMIT 1;
+      `,
+      [usuarioId, codigoHash],
+    );
+  }
+
+  /**
+   * Mark token as used
+   */
+  async markPasswordResetTokenUsed(tokenId: string): Promise<void> {
+    await this.databaseService.query(
+      `UPDATE password_reset_tokens SET used_at = now() WHERE id = $1`,
+      [tokenId],
+    );
+  }
+
+  /**
+   * Update user password
+   */
+  async updateUserPassword(usuarioId: string, senhaHash: string): Promise<void> {
+    await this.databaseService.query(
+      `UPDATE usuarios SET senha_hash = $1 WHERE id = $2`,
+      [senhaHash, usuarioId],
+    );
+  }
+
+  /**
+   * Update user profile fields
+   */
+  async updateUserProfile(
+    usuarioId: string,
+    data: { telefone?: string; dataNascimento?: string },
+  ): Promise<{
+    id: string;
+    telefone: string | null;
+    data_nascimento: string | null;
+  }> {
+    const sets: string[] = [];
+    const params: any[] = [];
+    let idx = 1;
+
+    if (data.telefone !== undefined) {
+      sets.push(`telefone = $${idx++}`);
+      params.push(data.telefone);
+    }
+    if (data.dataNascimento !== undefined) {
+      sets.push(`data_nascimento = $${idx++}`);
+      params.push(data.dataNascimento);
+    }
+
+    if (sets.length === 0) {
+      // Nothing to update, just return current
+      return this.databaseService.queryOne<{
+        id: string;
+        telefone: string | null;
+        data_nascimento: string | null;
+      }>(
+        `SELECT id, telefone, data_nascimento FROM usuarios WHERE id = $1`,
+        [usuarioId],
+      ) as Promise<{ id: string; telefone: string | null; data_nascimento: string | null }>;
+    }
+
+    params.push(usuarioId);
+    return this.databaseService.queryOne<{
+      id: string;
+      telefone: string | null;
+      data_nascimento: string | null;
+    }>(
+      `UPDATE usuarios SET ${sets.join(', ')} WHERE id = $${idx} RETURNING id, telefone, data_nascimento`,
+      params,
+    ) as Promise<{ id: string; telefone: string | null; data_nascimento: string | null }>;
   }
 }

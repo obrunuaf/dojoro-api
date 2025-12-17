@@ -13,6 +13,7 @@ import { AlunosModule } from './modules/alunos/alunos.module';
 import { TurmasModule } from './modules/turmas/turmas.module';
 import { HomeModule } from './modules/home/home.module';
 import { HealthModule } from './modules/health/health.module';
+import { UsersModule } from './modules/users/users.module';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 
@@ -39,6 +40,7 @@ import { APP_GUARD } from '@nestjs/core';
     InvitesModule,
     HomeModule,
     HealthModule,
+    UsersModule,
   ],
   providers: [
     {

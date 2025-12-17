@@ -14,8 +14,9 @@ import { InviteValidationDto } from './dtos/invite-validation.dto';
 import { LoginDto } from './dtos/login.dto';
 import { RefreshTokenDto } from './dtos/refresh-token.dto';
 import { RegisterDto } from './dtos/register.dto';
-import { ResetPasswordDto } from './dtos/reset-password.dto';
+import { SignupDto } from './dtos/signup.dto';
 import { MeResponseDto } from './dtos/me-response.dto';
+import { VerifyOtpDto, ResetPasswordWithOtpDto } from './dtos/otp.dto';
 
 type UserWithRole = {
   usuario_id: string;
@@ -123,6 +124,7 @@ export class AuthService {
       matriculaStatus: primaryRow.matricula_status,
       matriculaDataInicio: primaryRow.matricula_data_inicio,
       matriculaDataFim: primaryRow.matricula_data_fim,
+      profileComplete: primaryRow.data_nascimento !== null,
     };
   }
 
@@ -217,6 +219,61 @@ export class AuthService {
     };
   }
 
+  /**
+   * Self-service signup with academy code (creates PENDENTE matricula)
+   */
+  async signup(dto: SignupDto): Promise<AuthTokensDto> {
+    if (!dto.codigoAcademia) {
+      throw new BadRequestException('Codigo da academia e obrigatorio');
+    }
+
+    if (!dto.aceitouTermos) {
+      throw new BadRequestException('Aceite dos termos e obrigatorio');
+    }
+
+    const academia = await this.authRepository.findAcademiaByCode(dto.codigoAcademia);
+    if (!academia) {
+      throw new NotFoundException('Academia nao encontrada');
+    }
+
+    const existente = await this.authRepository.findUserByEmail(dto.email);
+    if (existente) {
+      throw new BadRequestException('Email ja cadastrado');
+    }
+
+    const senhaHash = await bcrypt.hash(dto.senha, 10);
+    const novoUsuario = await this.authRepository.createUserWithRoleAndMatricula({
+      email: dto.email,
+      senhaHash,
+      nomeCompleto: dto.nomeCompleto,
+      aceitouTermos: dto.aceitouTermos,
+      academiaId: academia.id,
+      papel: UserRole.ALUNO,
+      matriculaStatus: 'PENDENTE', // Self-service = pending approval
+    });
+
+    const payload = {
+      sub: novoUsuario.usuario_id,
+      email: dto.email,
+      role: UserRole.ALUNO,
+      roles: [UserRole.ALUNO],
+      academiaId: academia.id,
+    };
+
+    return {
+      accessToken: this.jwtService.sign(payload),
+      refreshToken: 'mock-refresh-token',
+      user: {
+        id: payload.sub,
+        nome: dto.nomeCompleto,
+        email: payload.email,
+        role: payload.role,
+        roles: payload.roles,
+        academiaId: payload.academiaId,
+      },
+    };
+  }
+
   async refresh(dto: RefreshTokenDto): Promise<AuthTokensDto> {
     const payload = {
       sub: 'mock-user-id',
@@ -240,18 +297,99 @@ export class AuthService {
     // TODO: validar refresh token real (spec 3.1.4)
   }
 
-  async forgotPassword(dto: ForgotPasswordDto) {
+  async forgotPassword(dto: ForgotPasswordDto): Promise<{
+    message: string;
+    devOtp?: string;
+  }> {
+    // Security: Never reveal if email exists
+    const genericMessage = 'Se o email existir, um codigo foi enviado.';
+
+    const user = await this.authRepository.findUserByEmail(dto.email);
+    if (!user) {
+      // Don't reveal that email doesn't exist
+      return { message: genericMessage };
+    }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Hash OTP with secret for storage (SHA256 for performance)
+    const secret = process.env.JWT_SECRET || 'fallback-secret';
+    const codigoHash = this.hashOtp(otp, secret);
+
+    // Expires in 15 minutes
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    await this.authRepository.createPasswordResetToken(
+      user.id,
+      codigoHash,
+      expiresAt,
+    );
+
+    // TODO: Send email with OTP in production
+    // For now, log it (remove in production)
+    console.log(`[DEV] OTP for ${dto.email}: ${otp}`);
+
+    // Return OTP only in non-production (for contract tests)
+    const isDev = process.env.NODE_ENV !== 'production';
     return {
-      message: `Token de recuperacao enviado para ${dto.email}`,
+      message: genericMessage,
+      ...(isDev && { devOtp: otp }),
     };
-    // TODO: enviar email real (spec 3.1.5)
   }
 
-  async resetPassword(dto: ResetPasswordDto) {
-    return {
-      message: `Senha redefinida para token ${dto.token} (mock)`,
-    };
-    // TODO: validar token de recuperacao e atualizar senha (spec 3.1.6)
+  async verifyOtp(dto: VerifyOtpDto): Promise<{ valid: boolean }> {
+    const user = await this.authRepository.findUserByEmail(dto.email);
+    if (!user) {
+      throw new BadRequestException('Codigo invalido ou expirado');
+    }
+
+    const secret = process.env.JWT_SECRET || 'fallback-secret';
+    const codigoHash = this.hashOtp(dto.codigo, secret);
+
+    const token = await this.authRepository.findValidPasswordResetToken(
+      user.id,
+      codigoHash,
+    );
+
+    if (!token) {
+      throw new BadRequestException('Codigo invalido ou expirado');
+    }
+
+    return { valid: true };
+  }
+
+  async resetPassword(dto: ResetPasswordWithOtpDto): Promise<{ message: string }> {
+    const user = await this.authRepository.findUserByEmail(dto.email);
+    if (!user) {
+      throw new BadRequestException('Codigo invalido ou expirado');
+    }
+
+    const secret = process.env.JWT_SECRET || 'fallback-secret';
+    const codigoHash = this.hashOtp(dto.codigo, secret);
+
+    const token = await this.authRepository.findValidPasswordResetToken(
+      user.id,
+      codigoHash,
+    );
+
+    if (!token) {
+      throw new BadRequestException('Codigo invalido ou expirado');
+    }
+
+    // Update password
+    const senhaHash = await bcrypt.hash(dto.novaSenha, 10);
+    await this.authRepository.updateUserPassword(user.id, senhaHash);
+
+    // Mark token as used
+    await this.authRepository.markPasswordResetTokenUsed(token.id);
+
+    return { message: 'Senha redefinida com sucesso.' };
+  }
+
+  private hashOtp(otp: string, secret: string): string {
+    const crypto = require('crypto');
+    return crypto.createHash('sha256').update(secret + otp).digest('hex');
   }
 
   private pickPrimaryRole<T extends { papel: UserRole | string }>(

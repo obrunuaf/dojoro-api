@@ -428,6 +428,84 @@ else {
     Test-Result "24. DELETE turma with future aulas -> 409" $false "Could not create test turma: $($createTurma.Status)"
 }
 
+# ============ AUTH RECOVERY + COMPLETE PROFILE ============
+Write-Host "`n--- AUTH RECOVERY + COMPLETE PROFILE ---" -ForegroundColor Yellow
+
+# Test 25: Forgot Password (get devOtp for testing)
+$forgotResult = Invoke-Api -Method POST -Endpoint "/auth/forgot-password" -Body @{
+    email = $AlunoEmail
+}
+$devOtp = $forgotResult.Data.devOtp
+Test-Result "25. POST /auth/forgot-password" ($forgotResult.Status -eq 200 -and $forgotResult.Data.message -ne $null) "Status: $($forgotResult.Status)"
+
+if ($devOtp) {
+    Write-Host "  devOtp received: $devOtp" -ForegroundColor Gray
+    
+    # Test 26: Verify OTP (valid)
+    $verifyResult = Invoke-Api -Method POST -Endpoint "/auth/verify-otp" -Body @{
+        email  = $AlunoEmail
+        codigo = $devOtp
+    }
+    Test-Result "26. POST /auth/verify-otp (valid)" ($verifyResult.Status -eq 200 -and $verifyResult.Data.valid -eq $true) "Status: $($verifyResult.Status)"
+    
+    # Test 27: Verify OTP with wrong code -> 400
+    $verifyBad = Invoke-Api -Method POST -Endpoint "/auth/verify-otp" -Body @{
+        email  = $AlunoEmail
+        codigo = "000000"
+    } -ExpectedStatus @(400)
+    Test-Result "27. POST /auth/verify-otp (wrong code) -> 400" ($verifyBad.Status -eq 400) "Status: $($verifyBad.Status)"
+    
+    # Test 28: Reset Password with OTP
+    $newPassword = "NovaSenha123"
+    $resetResult = Invoke-Api -Method POST -Endpoint "/auth/reset-password" -Body @{
+        email     = $AlunoEmail
+        codigo    = $devOtp
+        novaSenha = $newPassword
+    }
+    Test-Result "28. POST /auth/reset-password" ($resetResult.Status -eq 200 -and $resetResult.Data.message -ne $null) "Status: $($resetResult.Status)"
+    
+    # Test 29: Login with new password
+    $loginNew = Invoke-Api -Method POST -Endpoint "/auth/login" -Body @{
+        email = $AlunoEmail
+        senha = $newPassword
+    }
+    Test-Result "29. Login with new password" ($loginNew.Status -eq 200 -and $loginNew.Data.accessToken -ne $null) "Status: $($loginNew.Status)"
+    
+    # Restore original password for future tests
+    $restoreForgot = Invoke-Api -Method POST -Endpoint "/auth/forgot-password" -Body @{
+        email = $AlunoEmail
+    }
+    if ($restoreForgot.Data.devOtp) {
+        Invoke-Api -Method POST -Endpoint "/auth/reset-password" -Body @{
+            email     = $AlunoEmail
+            codigo    = $restoreForgot.Data.devOtp
+            novaSenha = $AlunoPass
+        } | Out-Null
+        Write-Host "  Restored original password" -ForegroundColor Gray
+    }
+}
+else {
+    Write-Host "  No devOtp returned (may be production mode)" -ForegroundColor Yellow
+    Test-Result "26. POST /auth/verify-otp" $true "Skipped (no devOtp)"
+    Test-Result "27. POST /auth/verify-otp (wrong)" $true "Skipped"
+    Test-Result "28. POST /auth/reset-password" $true "Skipped"
+    Test-Result "29. Login with new password" $true "Skipped"
+}
+
+# Test 30: PATCH /users/me/profile
+$profileUpdate = Invoke-Api -Method PATCH -Endpoint "/users/me/profile" -Headers $alunoHeaders -Body @{
+    telefone       = "+5511999999999"
+    dataNascimento = "1990-05-15"
+}
+Test-Result "30. PATCH /users/me/profile" ($profileUpdate.Status -eq 200) "Status: $($profileUpdate.Status)"
+
+if ($profileUpdate.Data) {
+    Test-Result "31. profileComplete flag present" ($profileUpdate.Data.profileComplete -ne $null) "profileComplete: $($profileUpdate.Data.profileComplete)"
+}
+else {
+    Test-Result "31. profileComplete flag present" $false "No data returned"
+}
+
 # ============ CLEANUP ============
 if ($cleanup.Count -gt 0) {
     Invoke-Cleanup

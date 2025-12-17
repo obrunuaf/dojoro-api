@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { UserRole } from '../../../common/enums/user-role.enum';
 
 export class MeResponseDto {
@@ -37,4 +37,7 @@ export class MeResponseDto {
 
   @ApiProperty({ nullable: true })
   matriculaDataFim: string | null;
+
+  @ApiProperty({ description: 'True if data_nascimento is set' })
+  profileComplete: boolean;
 }
