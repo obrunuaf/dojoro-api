@@ -32,7 +32,7 @@ export class RegisterDto {
   senha: string;
 
   @ApiProperty({
-    description: 'Codigo de convite no formato BJJ-XXXXXX',
+    description: 'Codigo de convite no formato DOJ-XXXXXX',
   })
   @IsString()
   codigoConvite: string;

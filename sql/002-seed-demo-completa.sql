@@ -1,4 +1,4 @@
--- SEED DEMO COMPLETA BJJ ACADEMY
+-- SEED DEMO COMPLETA DOJORO
 -- ATENÇÃO: execute após ter rodado o 001-init-schema.sql
 
 -- Garante extensão de crypto (para gen_random_uuid / crypt)
@@ -22,7 +22,7 @@ on conflict (slug) do nothing;
 -- ============================
 
 insert into academias (nome, codigo_convite, ativo)
-values ('Academia Seed BJJ', 'BJJ-SEED1', true)
+values ('Dojoro Seed Academy', 'DOJ-SEED1', true)
 on conflict (codigo_convite) do nothing;
 
 -- ============================
@@ -38,7 +38,7 @@ cross join (
     ('nogi', 'No-Gi Adulto', 'Treino sem kimono',  '#f97316'),
     ('kids', 'Kids',         'Aulas infantis',     '#22c55e')
 ) as x(codigo, nome, descricao, cor)
-where a.codigo_convite = 'BJJ-SEED1'
+where a.codigo_convite = 'DOJ-SEED1'
 on conflict (academia_id, codigo) do nothing;
 
 -- ============================
@@ -117,7 +117,7 @@ join (
   on true
 join usuarios u
   on u.email = p.email
-where a.codigo_convite = 'BJJ-SEED1'
+where a.codigo_convite = 'DOJ-SEED1'
 on conflict (usuario_id, academia_id, papel) do nothing;
 
 -- ============================
@@ -140,7 +140,7 @@ join usuarios u
     'admin.seed@example.com',
     'ti.seed@example.com'
   )
-where a.codigo_convite = 'BJJ-SEED1'
+where a.codigo_convite = 'DOJ-SEED1'
 on conflict (academia_id, numero_matricula) do nothing;
 
 -- ============================
@@ -158,7 +158,7 @@ cross join (
     ('marrom', 100, 24, 100),
     ('preta',  120, 36, 120)
 ) as x(faixa_slug, aulas_minimas, tempo_minimo_meses, meta_aulas_no_grau)
-where a.codigo_convite = 'BJJ-SEED1'
+where a.codigo_convite = 'DOJ-SEED1'
 on conflict (academia_id, faixa_slug) do nothing;
 
 -- ============================
@@ -179,7 +179,7 @@ join tipos_treino tt
  and tt.codigo = 'gi'
 join usuarios instrutor
   on instrutor.email = 'instrutor.seed@example.com'
-where a.codigo_convite = 'BJJ-SEED1'
+where a.codigo_convite = 'DOJ-SEED1'
   and not exists (
     select 1 from turmas t
     where t.academia_id = a.id
@@ -201,7 +201,7 @@ join tipos_treino tt
  and tt.codigo = 'nogi'
 left join usuarios professor
   on professor.email = 'professor.seed@example.com'
-where a.codigo_convite = 'BJJ-SEED1'
+where a.codigo_convite = 'DOJ-SEED1'
   and not exists (
     select 1 from turmas t
     where t.academia_id = a.id
@@ -227,7 +227,7 @@ join turmas t
   on t.academia_id = a.id
  and t.nome = 'Adulto Gi Noite'
 cross join generate_series(date '2025-09-01', date '2025-11-30', interval '1 day') as d
-where a.codigo_convite = 'BJJ-SEED1'
+where a.codigo_convite = 'DOJ-SEED1'
   and extract(dow from d) in (1,3) -- 1 = Monday, 3 = Wednesday
   and not exists (
     select 1 from aulas au
@@ -253,7 +253,7 @@ cross join hoje h
 join turmas t
   on t.academia_id = a.id
  and t.nome = 'Adulto Gi Noite'
-where a.codigo_convite = 'BJJ-SEED1'
+where a.codigo_convite = 'DOJ-SEED1'
   and not exists (
     select 1 from aulas au
     where au.turma_id = t.id
@@ -277,7 +277,7 @@ from turmas t
 join academias a on a.id = t.academia_id
 cross join janela j
 cross join generate_series(j.inicio, j.fim, interval '1 day') as g(dia)
-where a.codigo_convite = 'BJJ-SEED1'
+where a.codigo_convite = 'DOJ-SEED1'
   and extract(dow from g.dia) = any(t.dias_semana)
   and not exists (
     select 1 from aulas au
@@ -292,7 +292,7 @@ with aula_hoje as (
   join turmas t on t.id = au.turma_id
   join academias a on a.id = au.academia_id
   cross join (select (date_trunc('day', now() at time zone 'America/Sao_Paulo'))::date as dia) h
-  where a.codigo_convite = 'BJJ-SEED1'
+  where a.codigo_convite = 'DOJ-SEED1'
     and t.nome = 'Adulto Gi Noite'
     and au.data_inicio::date = h.dia
   limit 1
@@ -380,7 +380,7 @@ join (
   on g.email = u.email
 left join usuarios prof
   on prof.email = 'professor.seed@example.com'
-where a.codigo_convite = 'BJJ-SEED1'
+where a.codigo_convite = 'DOJ-SEED1'
   and not exists (
     select 1 from graduacoes gr
     where gr.usuario_id = u.id
@@ -438,7 +438,7 @@ join usuarios u
   )
 left join usuarios aluno
   on aluno.email = 'aluno.seed@example.com'
-where a.codigo_convite = 'BJJ-SEED1'
+where a.codigo_convite = 'DOJ-SEED1'
   and t.nome = 'Adulto Gi Noite'
   and not exists (
     select 1 from presencas p

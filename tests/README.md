@@ -1,6 +1,6 @@
 # Contract Tests
 
-Automated API contract tests for BJJ Academy API v1.
+Automated API contract tests for Dojoro API.
 
 ## Prerequisites
 
@@ -15,13 +15,13 @@ Automated API contract tests for BJJ Academy API v1.
 docker compose -f docker-compose.ci.yml up -d
 
 # 2. Wait for Postgres to be ready
-docker compose -f docker-compose.ci.yml exec postgres pg_isready -U bjj_ci
+docker compose -f docker-compose.ci.yml exec postgres pg_isready -U dojoro_ci
 
 # 3. Apply SQL migrations
 node scripts/apply-sql.js
 
 # 4. Start API (in another terminal)
-DATABASE_URL=postgresql://bjj_ci:bjj_ci_password@localhost:5433/bjj_academy_test \
+DATABASE_URL=postgresql://dojoro_ci:dojoro_ci_password@localhost:5433/dojoro_test \
 JWT_SECRET=test-secret \
 APP_TIMEZONE=America/Sao_Paulo \
 npm run start:dev
@@ -53,9 +53,9 @@ docker compose -f docker-compose.ci.yml down -v
 |----------|---------|-------------|
 | `PGHOST` | localhost | Postgres host |
 | `PGPORT` | 5433 | Postgres port (5433 to avoid conflicts) |
-| `PGUSER` | bjj_ci | Database user |
-| `PGPASSWORD` | bjj_ci_password | Database password |
-| `PGDATABASE` | bjj_academy_test | Database name |
+| `PGUSER` | dojoro_ci | Database user |
+| `PGPASSWORD` | dojoro_ci_password | Database password |
+| `PGDATABASE` | dojoro_test | Database name |
 | `JWT_SECRET` | (required) | JWT signing secret |
 | `APP_TIMEZONE` | America/Sao_Paulo | Timezone for date calculations |
 

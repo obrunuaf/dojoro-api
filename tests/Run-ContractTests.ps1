@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    BJJ Academy API v1 - Contract Test Script
+    Dojoro API - Contract Test Script
 .DESCRIPTION
     Complete E2E test covering STAFF/ALUNO flows
     - Repeatable: creates temp resources and cleans up
@@ -125,7 +125,7 @@ function Invoke-Cleanup {
 }
 
 Write-Host "`n========================================" -ForegroundColor Cyan
-Write-Host "BJJ Academy API v1 - Contract Tests" -ForegroundColor Cyan
+Write-Host "Dojoro API - Contract Tests" -ForegroundColor Cyan
 Write-Host "Date Range: $FromDate to $ToDate" -ForegroundColor Cyan
 Write-Host "========================================`n" -ForegroundColor Cyan
 

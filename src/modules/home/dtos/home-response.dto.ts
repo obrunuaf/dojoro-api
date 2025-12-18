@@ -12,7 +12,7 @@ export class HomeResponseDto {
       role: 'ALUNO',
       roles: ['ALUNO'],
       academiaId: 'academia-id',
-      academiaNome: 'Academia Seed BJJ',
+      academiaNome: 'Academia Seed Dojoro',
       faixaAtual: 'azul',
       grauAtual: 1,
       matriculaStatus: 'ATIVA',

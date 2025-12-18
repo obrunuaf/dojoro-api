@@ -18,7 +18,7 @@ create table if not exists faixas (
 create table if not exists academias (
   id                uuid primary key default gen_random_uuid(),
   nome              varchar(255) not null,
-  codigo_convite    varchar(20) unique,       -- ex: BJJ-UNIT1 (opcional)
+  codigo_convite    varchar(20) unique,       -- ex: DOJ-UNIT1 (opcional)
   ativo             boolean not null default true,
   criado_em         timestamptz not null default now()
 );

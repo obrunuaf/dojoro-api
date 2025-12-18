@@ -1,7 +1,7 @@
 {
-  "name": "bjjacademy-api",
+  "name": "dojoro-api",
   "version": "0.1.0",
-  "description": "BJJAcademy API v1 backend (NestJS + TypeScript)",
+  "description": "Dojoro API - O sistema que organiza a vida da academia de Jiu-Jitsu",
   "author": "",
   "license": "MIT",
   "scripts": {

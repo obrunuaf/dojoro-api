@@ -6,15 +6,15 @@ version: "3.8"
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: bjj-postgres-ci
+    container_name: dojoro-postgres-ci
     environment:
-      POSTGRES_USER: bjj_ci
-      POSTGRES_PASSWORD: bjj_ci_password
-      POSTGRES_DB: bjj_academy_test
+      POSTGRES_USER: dojoro_ci
+      POSTGRES_PASSWORD: dojoro_ci_password
+      POSTGRES_DB: dojoro_test
     ports:
       - "5433:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U bjj_ci -d bjj_academy_test"]
+      test: ["CMD-SHELL", "pg_isready -U dojoro_ci -d dojoro_test"]
       interval: 5s
       timeout: 5s
       retries: 10

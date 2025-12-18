@@ -1,6 +1,7 @@
-# BJJAcademy API v1
+# Dojoro API
 
-Backend NestJS para autenticar, gerir check-ins/dashboards e operar academias BJJAcademy/Codex. Prefixo global `/v1`, Swagger em `/v1/docs`.
+O sistema que organiza a vida da academia de Jiu-Jitsu. Do primeiro treino à faixa preta.
+ Prefixo global `/v1`, Swagger em `/v1/docs`.
 
 ## Requisitos
 - Node.js 18+ e npm
@@ -27,7 +28,7 @@ Preencha:
   - `SUPABASE_CA_CERT_PATH=` (usado apenas se futuramente habilitar verify-full em prod)
 - **E-mail (Resend)**:
   - `RESEND_API_KEY=re_...` (ApiKey do provedor Resend)
-  - `EMAIL_FROM=contato@seadomain.com` (Remetente verificado no Resend)
+  - `EMAIL_FROM=contato@dojoro.com.br` (Remetente verificado no Resend)
 
 ## Banco de dados (Supabase/Postgres)
 Aplicar os scripts na ordem:
@@ -457,7 +458,7 @@ curl "http://localhost:3000/v1/alunos/$ALUNO_ID/historico-presencas?from=2025-01
   -H "Authorization: Bearer $ALUNO_TOKEN"
 ```
 
-## Seed personas (Academia Seed BJJ)
+## Seed personas (Academia Seed Dojoro)
 - ALUNO: `aluno.seed@example.com` / `SenhaAluno123`
 - INSTRUTOR: `instrutor.seed@example.com` / `SenhaInstrutor123`
 - PROFESSOR: `professor.seed@example.com` / `SenhaProfessor123` (roles: `PROFESSOR` + `ALUNO`)

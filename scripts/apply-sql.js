@@ -22,9 +22,9 @@ async function main() {
     : {
         host: process.env.PGHOST || 'localhost',
         port: parseInt(process.env.PGPORT || '5433', 10),
-        user: process.env.PGUSER || 'bjj_ci',
-        password: process.env.PGPASSWORD || 'bjj_ci_password',
-        database: process.env.PGDATABASE || 'bjj_academy_test',
+        user: process.env.PGUSER || 'dojoro_ci',
+        password: process.env.PGPASSWORD || 'dojoro_ci_password',
+        database: process.env.PGDATABASE || 'dojoro_test',
       };
 
   console.log('Connecting to database...');

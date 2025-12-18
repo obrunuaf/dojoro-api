@@ -25,8 +25,8 @@ async function bootstrap() {
   );
 
   const config = new DocumentBuilder()
-    .setTitle('BJJAcademy API v1')
-    .setDescription('API da BJJAcademy - v1 (mock/stub)')
+    .setTitle('Dojoro API')
+    .setDescription('Dojoro API - O sistema que organiza a vida da academia de Jiu-Jitsu')
     .setVersion('1.0')
     .addBearerAuth(
       {

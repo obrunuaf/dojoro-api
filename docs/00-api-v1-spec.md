@@ -1,12 +1,13 @@
-# BJJAcademy API v1 - Especificacao (atualizada)
+# Dojoro API - Especificação Técnica
 
-Documento de referencia rapida da API v1 do ecossistema **BJJAcademy / BJJAcademy Codex**, cobrindo convencoes, modulos principais e endpoints ja implementados.
+O sistema que organiza a vida da academia de Jiu-Jitsu. Do primeiro treino à faixa preta.
+ Prefixo global `/v1`, Swagger em `/v1/docs`.
 
 ---
 
 ## 1. Visao geral
 
-- **O que e**: backend que centraliza autenticacao, check-ins, dashboards e gestao academica da BJJAcademy.
+- **O que e**: backend que centraliza autenticacao, check-ins, dashboards e gestao academica da dojoro-api.
 - **Stack**: NestJS + TypeScript, PostgreSQL (Supabase), acesso via `pg`/SQL cru (`DatabaseService`), JWT com roles, Swagger em `/v1/docs`.
 - **Dominios principais**: Auth & Onboarding, Dashboards, Check-in & Presencas, Alunos & Graduacoes, Configuracoes.
 
@@ -168,7 +169,7 @@ O Swagger enviara automaticamente `Authorization: Bearer <accessToken>`.
   "role": "ALUNO",
   "roles": ["ALUNO"],
   "academiaId": "46af5505-f3cd-4df2-b856-ce1a33471481",
-  "academiaNome": "Academia Seed BJJ",
+  "academiaNome": "Academia Seed Dojoro",
   "faixaAtual": "azul",
   "grauAtual": 1,
   "matriculaStatus": "ATIVA",
@@ -263,8 +264,8 @@ curl http://localhost:3000/v1/auth/me \
 
 #### 3.1.8 Demais rotas de Auth
 
-- `GET /auth/convite/:codigo` - valida codigo de convite.
-- `POST /auth/register` - conclui cadastro a partir de convite (matricula ATIVA).
+- `GET /auth/convite/:codigo` - valida codigo de convite (BJJ Academy -> Dojoro rebranding).
+- `POST /auth/register` - conclui cadastro a partir de convite (Matricula ATIVA).
 - `POST /auth/refresh` - renova tokens (mock; sera evoluida).
 
 ### 3.3 Matriculas (Staff)
@@ -322,13 +323,13 @@ curl http://localhost:3000/v1/auth/me \
   ```json
   {
     "id": "uuid",
-    "nome": "Academia Seed BJJ",
+    "nome": "Academia Seed Dojoro",
     "codigo": "ACAD46AF",
-    "codigoConvite": "BJJ-UNIT1",
+    "codigoConvite": "DOJ-UNIT1",
     "ativo": true,
     "endereco": "Rua das Artes Marciais, 123",
     "telefone": "+5511999999999",
-    "email": "contato@academiabjj.com",
+    "email": "contato@dojoro.com.br",
     "logoUrl": "https://example.com/logo.png",
     "criadoEm": "2025-01-01T00:00:00.000Z"
   }
@@ -463,7 +464,7 @@ Notas:
     "nome": "Aluno Seed",
     "email": "aluno.seed@example.com",
     "academiaId": "46af5505-f3cd-4df2-b856-ce1a33471481",
-    "academiaNome": "Academia Seed BJJ",
+    "academiaNome": "Academia Seed Dojoro",
     "matriculaNumero": 2,
     "matriculaStatus": "ATIVA",
     "matriculaDataInicio": "2025-06-01",
@@ -812,7 +813,7 @@ curl -X POST http://localhost:3000/v1/presencas/pendencias/lote \
 
 ## 6. Seeds e contas de exemplo
 
-Todas as contas abaixo pertencem a **Academia Seed BJJ** (scripts em `sql/002-seed-demo-completa.sql`):
+Todas as contas abaixo pertencem a **Academia Seed Dojoro** (scripts em `sql/002-seed-demo-completa.sql`):
 - `aluno.seed@example.com` / `SenhaAluno123` — ALUNO
 - `instrutor.seed@example.com` / `SenhaInstrutor123` — INSTRUTOR (tambem ALUNO)
 - `professor.seed@example.com` / `SenhaProfessor123` — PROFESSOR (tambem ALUNO)

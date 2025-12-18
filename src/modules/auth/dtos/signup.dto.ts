@@ -17,7 +17,7 @@ export class SignupDto {
 
   @ApiProperty({
     description: 'Codigo da academia (informado pelo professor)',
-    example: 'ACADBJJ',
+    example: 'ACADDOJ',
   })
   @IsString()
   codigoAcademia: string;

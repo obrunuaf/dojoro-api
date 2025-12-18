@@ -52,7 +52,7 @@ export class InvitesService {
 
     // 5. Enviar email se houver endereço
     if (dto.email) {
-      const inviteUrl = `https://bjjacademy.app/register?token=${token}`;
+      const inviteUrl = `https://dojoro.com.br/register?token=${token}`;
       this.emailService
         .sendInviteEmail(dto.email, academia.nome, inviteUrl)
         .catch((err) => console.error('Error sending invite email:', err));

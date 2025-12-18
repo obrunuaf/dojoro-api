@@ -1,4 +1,4 @@
-# BJJ Academy API v1 - Contract Test Suite
+# Dojoro API - Contract Test Suite
 
 Complete QA test plan for STAFF (PROFESSOR) and ALUNO flows.
 
@@ -65,7 +65,7 @@ Complete QA test plan for STAFF (PROFESSOR) and ALUNO flows.
 ```powershell
 <#
 .SYNOPSIS
-    BJJ Academy API v1 - Contract Test Script
+    Dojoro API - Contract Test Script
 .DESCRIPTION
     Complete E2E test covering STAFF/ALUNO flows
 .NOTES
@@ -129,7 +129,7 @@ function Invoke-Api {
 }
 
 Write-Host "`n========================================" -ForegroundColor Cyan
-Write-Host "BJJ Academy API v1 - Contract Tests" -ForegroundColor Cyan
+Write-Host "Dojoro API - Contract Tests" -ForegroundColor Cyan
 Write-Host "========================================`n" -ForegroundColor Cyan
 
 # ============ AUTHENTICATION ============
@@ -370,7 +370,7 @@ if ($failed -gt 0) {
 
 ```sql
 -- ========================================
--- BJJ Academy API - SQL Validation Queries
+-- Dojoro API - SQL Validation Queries
 -- Run in Supabase SQL Editor or psql
 -- ========================================
 
