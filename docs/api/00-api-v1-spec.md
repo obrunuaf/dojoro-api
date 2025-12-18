@@ -1,7 +1,7 @@
 # Dojoro API - Especificação Técnica
 
 O sistema que organiza a vida da academia de Jiu-Jitsu. Do primeiro treino à faixa preta.
- Prefixo global `/v1`, Swagger em `/v1/docs`.
+Prefixo global `/v1`, Swagger em `/v1/docs`.
 
 ---
 
@@ -34,11 +34,11 @@ O sistema que organiza a vida da academia de Jiu-Jitsu. Do primeiro treino à fa
   - Prioridade do papel principal quando o usuario tem multiplos papeis na mesma academia: `TI` > `ADMIN` > `PROFESSOR` > `INSTRUTOR` > `ALUNO`.
 - **Banco**: PostgreSQL (Supabase). Scripts de schema/seeds em `sql/` (ex.: `001-init-schema.sql`, `005-tipos-treino-codigo.sql`, `002-seed-demo-completa.sql`, `003-seed-faixas-e-regras-base.sql`).
 - **Authorize no Swagger (passo a passo)**:
-  1) Acesse `http://localhost:3000/v1/docs` e clique em **Authorize** (esquema `JWT`).
-  2) Chame `POST /v1/auth/login` e copie somente o `accessToken` retornado.
-  3) No modal, cole apenas o token (nao prefixe `Bearer`); o esquema bearer monta `Authorization: Bearer <token>`.
-  4) O header so sera enviado para rotas com `@ApiBearerAuth('JWT')` (todas as privadas usam `@ApiAuth()`).
-  5) Execute `GET /v1/auth/me` para validar.
+  1. Acesse `http://localhost:3000/v1/docs` e clique em **Authorize** (esquema `JWT`).
+  2. Chame `POST /v1/auth/login` e copie somente o `accessToken` retornado.
+  3. No modal, cole apenas o token (nao prefixe `Bearer`); o esquema bearer monta `Authorization: Bearer <token>`.
+  4. O header so sera enviado para rotas com `@ApiBearerAuth('JWT')` (todas as privadas usam `@ApiAuth()`).
+  5. Execute `GET /v1/auth/me` para validar.
 
 ### Multi-role (seed)
 
@@ -47,6 +47,7 @@ O sistema que organiza a vida da academia de Jiu-Jitsu. Do primeiro treino à fa
 - Swagger ja usa o mesmo token (nao muda o fluxo de authorize).
 
 Exemplo real (professor seed consumindo rota de aluno):
+
 ```bash
 PROF_TOKEN=$(curl -s -X POST http://localhost:3000/v1/auth/login \
   -H "Content-Type: application/json" \
@@ -58,33 +59,33 @@ curl http://localhost:3000/v1/checkin/disponiveis \
 
 ### Matriz de Permissoes por Role
 
-| Role | Permissoes |
-|------|------------|
-| **ALUNO** | Check-in (QR), ver proprio perfil/evolucao, listar turmas, dashboard aluno, atualizar perfil |
-| **INSTRUTOR** | Tudo do ALUNO + gerenciar aulas, presencas, turmas, convidar usuarios |
-| **PROFESSOR** | Tudo do INSTRUTOR + graduar alunos, configurar regras de graduacao |
-| **ADMIN** | Tudo do PROFESSOR |
-| **TI** | Acesso total (todas as funcionalidades) |
+| Role          | Permissoes                                                                                   |
+| ------------- | -------------------------------------------------------------------------------------------- |
+| **ALUNO**     | Check-in (QR), ver proprio perfil/evolucao, listar turmas, dashboard aluno, atualizar perfil |
+| **INSTRUTOR** | Tudo do ALUNO + gerenciar aulas, presencas, turmas, convidar usuarios                        |
+| **PROFESSOR** | Tudo do INSTRUTOR + graduar alunos, configurar regras de graduacao                           |
+| **ADMIN**     | Tudo do PROFESSOR                                                                            |
+| **TI**        | Acesso total (todas as funcionalidades)                                                      |
 
 #### Detalhamento por Modulo
 
-| Modulo | ALUNO | INSTRUTOR+ | PROFESSOR+ |
-|--------|-------|------------|------------|
-| **Auth** (login, register, forgot-password, etc.) | ✅ Publico | ✅ | ✅ |
-| **Users** (PATCH /me/profile) | ✅ | ✅ | ✅ |
-| **Dashboard** (/aluno) | ✅ | ✅ | ✅ |
-| **Dashboard** (/staff) | ❌ | ✅ | ✅ |
-| **Checkin** (disponiveis, POST) | ✅ | ❌ | ❌ |
-| **Aulas** (CRUD, encerrar, presencas) | ❌ | ✅ | ✅ |
-| **Presencas** (pendencias, decisao, lote) | ❌ | ✅ | ✅ |
-| **Alunos** (listar) | ❌ | ✅ | ✅ |
-| **Alunos** (detalhe proprio) | ✅ | ✅ | ✅ |
-| **Turmas** (listar) | ✅ | ✅ | ✅ |
-| **Turmas** (CRUD) | ❌ | ✅ | ✅ |
-| **Graduacoes** (POST) | ❌ | ❌ | ✅ |
-| **Config** (tipos-treino) | ❌ | ✅ | ✅ |
-| **Config** (regras-graduacao) | ❌ | ❌ | ✅ |
-| **Invites** (POST) | ❌ | ✅ | ✅ |
+| Modulo                                            | ALUNO      | INSTRUTOR+ | PROFESSOR+ |
+| ------------------------------------------------- | ---------- | ---------- | ---------- |
+| **Auth** (login, register, forgot-password, etc.) | ✅ Publico | ✅         | ✅         |
+| **Users** (PATCH /me/profile)                     | ✅         | ✅         | ✅         |
+| **Dashboard** (/aluno)                            | ✅         | ✅         | ✅         |
+| **Dashboard** (/staff)                            | ❌         | ✅         | ✅         |
+| **Checkin** (disponiveis, POST)                   | ✅         | ❌         | ❌         |
+| **Aulas** (CRUD, encerrar, presencas)             | ❌         | ✅         | ✅         |
+| **Presencas** (pendencias, decisao, lote)         | ❌         | ✅         | ✅         |
+| **Alunos** (listar)                               | ❌         | ✅         | ✅         |
+| **Alunos** (detalhe proprio)                      | ✅         | ✅         | ✅         |
+| **Turmas** (listar)                               | ✅         | ✅         | ✅         |
+| **Turmas** (CRUD)                                 | ❌         | ✅         | ✅         |
+| **Graduacoes** (POST)                             | ❌         | ❌         | ✅         |
+| **Config** (tipos-treino)                         | ❌         | ✅         | ✅         |
+| **Config** (regras-graduacao)                     | ❌         | ❌         | ✅         |
+| **Invites** (POST)                                | ❌         | ✅         | ✅         |
 
 > **Nota**: INSTRUTOR+ significa INSTRUTOR, PROFESSOR, ADMIN e TI. PROFESSOR+ significa PROFESSOR, ADMIN e TI.
 
@@ -182,6 +183,7 @@ O Swagger enviara automaticamente `Authorization: Bearer <accessToken>`.
 **Codigos de resposta:** `200 OK`, `401 Unauthorized`, `404 Not Found`.
 
 **Exemplo curl (/auth/me):**
+
 ```bash
 ACCESS_TOKEN="<cole-o-accessToken-do-login>"
 curl http://localhost:3000/v1/auth/me \
@@ -214,7 +216,7 @@ curl http://localhost:3000/v1/auth/me \
   ```json
   {
     "message": "Se o email existir, um codigo foi enviado.",
-    "devOtp": "123456"  // apenas em NODE_ENV != production
+    "devOtp": "123456" // apenas em NODE_ENV != production
   }
   ```
 
@@ -264,7 +266,7 @@ curl http://localhost:3000/v1/auth/me \
 
 #### 3.1.8 Demais rotas de Auth
 
-- `GET /auth/convite/:codigo` - valida codigo de convite (BJJ Academy -> Dojoro rebranding).
+- `GET /auth/convite/:codigo` - valida codigo de convite.
 - `POST /auth/register` - conclui cadastro a partir de convite (Matricula ATIVA).
 - `POST /auth/refresh` - renova tokens (mock; sera evoluida).
 
@@ -365,6 +367,7 @@ curl http://localhost:3000/v1/auth/me \
   - `aluno`: dashboard do aluno + `checkinDisponiveis`, `ultimasPresencas` (10) e `historicoGraduacoes` (10) — presente apenas quando `mode=ALUNO`
   - `staff`: dashboard staff + `aulasHoje` e pendencias (`total` + itens) — presente apenas quando `mode=STAFF`
 - **Exemplos (curl)**:
+
   ```bash
   # aluno (modo default aluno)
   ACCESS_TOKEN="<token-aluno>"
@@ -390,6 +393,7 @@ curl http://localhost:3000/v1/auth/me \
   ```
 
 Notas:
+
 - Persona professor no seed possui `roles=["PROFESSOR","ALUNO"]`, entao pode usar `mode=aluno` ou `mode=staff`.
 - Aluno puro nao tem papel staff, portanto `mode=staff` retorna 403.
 
@@ -436,6 +440,7 @@ Notas:
 ### 3.3 Alunos (perfil e evolucao) — real
 
 #### 3.3.1 GET `/alunos` (staff)
+
 - **Roles:** `INSTRUTOR`, `PROFESSOR`, `ADMIN`, `TI` (aluno nao pode).
 - **Multi-tenant:** filtra por `academiaId` do JWT usando papeis/matriculas.
 - **Retorna:** `id`, `nome`, `email`, `faixaAtual` (slug), `grauAtual`, `matriculaStatus`, `matriculaNumero`.
@@ -455,6 +460,7 @@ Notas:
   ```
 
 #### 3.3.2 GET `/alunos/:id`
+
 - **Roles/escopo:** `ALUNO` so pode consultar o proprio `id` (`sub` do token). `INSTRUTOR/PROFESSOR/ADMIN/TI` podem consultar qualquer aluno da **mesma** academia; se outra academia, `403`. `UUID` invalido -> `400`; inexistente -> `404`.
 - **Retorna:** dados do aluno + vinculo atual: `id`, `nome`, `email`, `academiaId`, `academiaNome`, `matriculaNumero`, `matriculaStatus`, `matriculaDataInicio`, `matriculaDataFim`, `faixaAtual`, `grauAtual`, `presencasTotais` (somente status `PRESENTE` na academia do token).
 - **Exemplo (Aluno Seed):**
@@ -476,12 +482,13 @@ Notas:
   ```
 
 #### 3.3.3 GET `/alunos/:id/evolucao`
+
 - **Roles/escopo:** mesmo acesso da rota de detalhe (`ALUNO` so o proprio id; staff da mesma academia).
-- **Calculo:**  
-  - `historico`: graduacoes na academia (`graduacoes` + `usuarios` do professor).  
-  - `aulasNaFaixaAtual`: presencas `PRESENTE` desde a ultima graduacao (ou `data_inicio` da matricula se ainda nao graduado).  
-  - `metaAulas`: `regras_graduacao.meta_aulas_no_grau` se > 0; senao `aulas_minimas`; senao `DEFAULT_META_AULAS = 60`.  
-  - `porcentagemProgresso`: `floor(aulasNaFaixaAtual * 100 / metaAulas)`, limitado a `100`; se `metaAulas <= 0` retorna `0`.  
+- **Calculo:**
+  - `historico`: graduacoes na academia (`graduacoes` + `usuarios` do professor).
+  - `aulasNaFaixaAtual`: presencas `PRESENTE` desde a ultima graduacao (ou `data_inicio` da matricula se ainda nao graduado).
+  - `metaAulas`: `regras_graduacao.meta_aulas_no_grau` se > 0; senao `aulas_minimas`; senao `DEFAULT_META_AULAS = 60`.
+  - `porcentagemProgresso`: `floor(aulasNaFaixaAtual * 100 / metaAulas)`, limitado a `100`; se `metaAulas <= 0` retorna `0`.
 - **Exemplo (Aluno Seed):**
   ```json
   {
@@ -510,6 +517,7 @@ Notas:
 ### 3.4 Turmas e Aulas (real)
 
 #### 3.4.1 Turmas (CRUD com soft-delete)
+
 - **Roles leitura:** `ALUNO` e staff (mesma academia). **Escrita:** `INSTRUTOR`, `PROFESSOR`, `ADMIN`, `TI`.
 - **Soft-delete:** `deleted_at/deleted_by`; listagens ignoram deletadas por default. `includeDeleted`/`onlyDeleted` so para staff. `DELETE` retorna `409` se houver aulas futuras nao deletadas (cancele/dele-as antes).
 - **Campos (response):** `id`, `nome`, `tipoTreino`, `tipoTreinoCor`, `diasSemana` (0=Dom ... 6=Sab), `horarioPadrao` (HH:MM), `instrutorPadraoId`, `instrutorPadraoNome`, `deletedAt`.
@@ -538,8 +546,9 @@ Notas:
   ```
 
 #### 3.4.2 Aulas (CRUD, listagens e lote)
+
 - **Status permitidos:** `AGENDADA`, `ENCERRADA`, `CANCELADA`. `GET /aulas` ignora `deleted_at` por default (includeDeleted/onlyDeleted so para staff).
-- **Listagem (`GET /aulas`):** filtros opcionais `turmaId`, `from`, `to`, `status`. Sem filtros de data aplica janela de **hoje** no `APP_TIMEZONE` ([startUtc, endUtc)). Retorna turma (diasSemana, horarioPadrao, instrutorPadrao*), tipoTreino e, para staff, dados do QR se existirem.
+- **Listagem (`GET /aulas`):** filtros opcionais `turmaId`, `from`, `to`, `status`. Sem filtros de data aplica janela de **hoje** no `APP_TIMEZONE` ([startUtc, endUtc)). Retorna turma (diasSemana, horarioPadrao, instrutorPadrao\*), tipoTreino e, para staff, dados do QR se existirem.
 - **Detalhe (`GET /aulas/:id`):** mesma estrutura da lista; qrToken/qrExpiresAt so aparecem para staff. Nao retorna aulas deletadas/turmas deletadas.
 - **Presencas da aula (`GET /aulas/:id/presencas`) [STAFF]:** lista presencas daquela aula filtrando por `status=PENDENTE|PRESENTE|FALTA` e `q` (ILIKE em `aluno.nome`). Ordenacao fixa: PENDENTE > PRESENTE > FALTA, depois `alunoNome` asc. Retorna `{ aulaId, resumo { total, pendentes, presentes, faltas }, itens[] }` com auditoria (`decidido_em/por`, `decisao_observacao`, `updated_at`) apenas se as colunas existirem. Ignora aula/turma deletada salvo `includeDeleted=true`.
 - **Criacao (`POST /aulas`):** valida turma da academia e nao deletada, `dataFim > dataInicio`, sem duplicidade `turma+dataInicio` (`409`). Status default `AGENDADA`.
@@ -608,6 +617,7 @@ Notas:
 ### 3.5 Check-in & Presencas (real)
 
 **Regras gerais**
+
 - Janela de hoje usa `APP_TIMEZONE` para montar [startUtc, endUtc); aplicada em `/checkin/disponiveis` e `/presencas/pendencias`.
 - Escopo: `ALUNO` so enxerga o proprio historico/check-in; `STAFF` (INSTRUTOR/PROFESSOR/ADMIN/TI) so ve dados da `academiaId` do token.
 - Duplicidade: `presencas` tem unique `(aula_id, aluno_id)`; se ja existir retorna `422`.
@@ -618,17 +628,20 @@ Notas:
 - Erros: `401` sem token, `403` fora do escopo/academia, `422` para duplicidade/aula cancelada/QR invalido/expirado, `400` para query de data invalida.
 
 #### 3.5.1 GET `/checkin/disponiveis` (ALUNO)
+
 - Lista aulas de hoje (`aulas.status <> 'CANCELADA'`) da academia do token e indica se o aluno ja possui presenca (`jaFezCheckin`).
 - Retorna: `aulaId`, `turmaNome`, `dataInicio`, `dataFim`, `tipoTreino`, `statusAula`, `jaFezCheckin`.
 - Requer matricula `ATIVA` na academia; senao `403`.
 
 #### 3.5.2 POST `/checkin` (ALUNO)
+
 - Payload: `{ "aulaId": "uuid", "tipo": "MANUAL" | "QR", "qrToken": "opcional" }`.
 - Validacoes: aula existe e pertence a academia do token; aluno tem matricula `ATIVA`; `tipo=QR` exige `qrToken` igual a `aulas.qr_token` e `qr_expires_at > now()`; bloqueia duplicidade (`422`).
 - Criacao: `MANUAL` -> `status=PENDENTE`, `origem=MANUAL`; `QR` -> `status=PRESENTE`, `origem=QR_CODE`; `registrado_por` = usuario do token.
 - Resposta: `{ id, aulaId, alunoId, status, origem, criadoEm, registradoPor, aprovacaoStatus?, updatedAt?, decididoEm?, decididoPor?, decisaoObservacao? }` (campos extras so aparecem se a coluna existir).
 
 #### 3.5.3 GET `/presencas/pendencias` (STAFF)
+
 - Filtros opcionais: `date=YYYY-MM-DD` **ou** `from`/`to` (ISO, sempre juntos). Sem query, usa “hoje” (`APP_TIMEZONE`) com janela `[startUtc, endUtc)`.
 - Lista presencas com `status='PENDENTE'` para a academia do token (filtra por `aulas.data_inicio` no intervalo escolhido).
 - Retorna: `id`, `alunoId`, `alunoNome`, `aulaId`, `turmaNome`, `dataInicio`, `origem`, `status` (sempre `PENDENTE`), `criadoEm`, `decididoEm?`, `decididoPor?`, `decisaoObservacao?`, `updatedAt?`.
@@ -657,6 +670,7 @@ Notas:
   ```
 
 #### 3.5.4 PATCH `/presencas/:id/decisao` (STAFF)
+
 - Payload: `{ "decisao": "APROVAR" | "REJEITAR" | "PRESENTE" | "FALTA", "observacao?": "string" }`.
 - Efeitos: `APROVAR|PRESENTE` -> `status=PRESENTE`; `REJEITAR|FALTA` -> `status=FALTA`. Registra usuario/data/observacao se colunas existirem e retorna `409` se a presenca ja estiver decidida.
 - Valida `id` (UUID), escopo de academia e status pendente.
@@ -678,6 +692,7 @@ Notas:
   ```
 
 #### 3.5.5 POST `/presencas/pendencias/lote` (STAFF)
+
 - Payload: `{ "ids": ["uuid","uuid"], "decisao": "APROVAR" | "REJEITAR" | "PRESENTE" | "FALTA", "observacao?": "string" }`.
 - Resposta: `{ "processados": 2, "atualizados": ["uuid"], "ignorados": [{ "id": "uuid", "motivo": "nao encontrada|fora da academia|status=..." }] }`.
 - Exemplo:
@@ -690,15 +705,18 @@ Notas:
   ```
 
 #### 3.5.6 GET `/alunos/:id/historico-presencas`
+
 - Roles: `ALUNO` (somente o proprio id) ou `STAFF` da mesma academia.
 - Query opcional: `from=YYYY-MM-DD`, `to=YYYY-MM-DD` (limite padrao 50 itens).
 - Retorna: `presencaId`, `aulaId`, `dataInicio`, `turmaNome`, `tipoTreino`, `status`, `origem`.
 
 #### 3.5.7 GET `/aulas/:id/qrcode` (STAFF)
+
 - Gera/atualiza `qr_token` e `qr_expires_at` da aula (academia validada). TTL em minutos via env `QR_TTL_MINUTES` (fallback 5).
 - Resposta: `{ "aulaId": "...", "qrToken": "...", "expiresAt": "..." }` mais contexto (`turma`, `horario`).
 
 **Curls rapidos**
+
 ```bash
 # login (aluno e staff)
 ALUNO_TOKEN=$(curl -s -X POST http://localhost:3000/v1/auth/login \
@@ -753,20 +771,40 @@ curl -X POST http://localhost:3000/v1/presencas/pendencias/lote \
 ### 3.6 Configuracoes
 
 #### 3.6.1 GET `/config/tipos-treino` (real, staff)
+
 - Roles: `INSTRUTOR`, `PROFESSOR`, `ADMIN`, `TI` (filtra pela `academiaId` do token).
 - Fonte: tabela `tipos_treino` (multi-tenant). Ordenacao por `codigo`.
 - Payload de resposta: `id` = codigo humano (`gi`, `nogi`, `kids`), `uuid` interno, `nome`, `descricao`, `corIdentificacao`.
 - Exemplo (seed):
   ```json
   [
-    { "id": "gi", "uuid": "f127...6a1", "nome": "Gi Adulto", "descricao": "Treino com kimono", "corIdentificacao": "#3b82f6" },
-    { "id": "kids", "uuid": "e4a3...c92", "nome": "Kids", "descricao": "Aulas infantis", "corIdentificacao": "#22c55e" },
-    { "id": "nogi", "uuid": "72d8...8bf", "nome": "No-Gi Adulto", "descricao": "Treino sem kimono", "corIdentificacao": "#f97316" }
+    {
+      "id": "gi",
+      "uuid": "f127...6a1",
+      "nome": "Gi Adulto",
+      "descricao": "Treino com kimono",
+      "corIdentificacao": "#3b82f6"
+    },
+    {
+      "id": "kids",
+      "uuid": "e4a3...c92",
+      "nome": "Kids",
+      "descricao": "Aulas infantis",
+      "corIdentificacao": "#22c55e"
+    },
+    {
+      "id": "nogi",
+      "uuid": "72d8...8bf",
+      "nome": "No-Gi Adulto",
+      "descricao": "Treino sem kimono",
+      "corIdentificacao": "#f97316"
+    }
   ]
   ```
 - Turmas: `tipoTreinoId` nos POST/PATCH aceita os mesmos codigos; se invalido, retorna `400` com os codigos permitidos para a academia.
 
 #### 3.6.1 POST `/invites` (real)
+
 - **Roles:** `INSTRUTOR`, `PROFESSOR`, `ADMIN`, `TI`.
 - **Descricao:** gera um convite manual para um aluno. O sistema gera um token, persiste no banco e envia e-mail de convite se o `email` for fornecido.
 - **Payload:**
@@ -780,6 +818,7 @@ curl -X POST http://localhost:3000/v1/presencas/pendencias/lote \
 - **Resposta:** `{ "codigo": "token", "roleSugerido": "ALUNO", "validoAte": "...", "academiaId": "..." }`
 
 #### 3.6.2 Outras rotas (planejado/stub)
+
 - `GET /config/regras-graduacao` / `PUT /config/regras-graduacao/:faixaSlug` - regras de graduacao.
 
 ---
@@ -814,6 +853,7 @@ curl -X POST http://localhost:3000/v1/presencas/pendencias/lote \
 ## 6. Seeds e contas de exemplo
 
 Todas as contas abaixo pertencem a **Academia Seed Dojoro** (scripts em `sql/002-seed-demo-completa.sql`):
+
 - `aluno.seed@example.com` / `SenhaAluno123` — ALUNO
 - `instrutor.seed@example.com` / `SenhaInstrutor123` — INSTRUTOR (tambem ALUNO)
 - `professor.seed@example.com` / `SenhaProfessor123` — PROFESSOR (tambem ALUNO)
