@@ -25,6 +25,9 @@ Preencha:
   - `PG_SSL=true` (default true para Supabase)
   - `PG_SSL_REJECT_UNAUTHORIZED=false` (DEV/POC evita erro de self-signed)
   - `SUPABASE_CA_CERT_PATH=` (usado apenas se futuramente habilitar verify-full em prod)
+- **E-mail (Resend)**:
+  - `RESEND_API_KEY=re_...` (ApiKey do provedor Resend)
+  - `EMAIL_FROM=contato@seadomain.com` (Remetente verificado no Resend)
 
 ## Banco de dados (Supabase/Postgres)
 Aplicar os scripts na ordem:
@@ -464,6 +467,6 @@ curl "http://localhost:3000/v1/alunos/$ALUNO_ID/historico-presencas?from=2025-01
 - Se alterar `JWT_SECRET`, todos os tokens antigos (emitidos antes da troca) deixam de funcionar.
 
 ## Estado atual da API
-- **Real (Postgres):** `POST /v1/auth/login`, `GET /v1/auth/me`, `GET /v1/auth/convite/:codigo`, `POST /v1/auth/register`, `GET /v1/home`, `GET /v1/dashboard/aluno`, `GET /v1/dashboard/staff`, `GET /v1/alunos`, `GET /v1/alunos/:id`, `GET /v1/alunos/:id/evolucao`, `GET /v1/alunos/:id/historico-presencas`, `GET /v1/config/tipos-treino`, `GET /v1/turmas`, `GET /v1/turmas/:id`, `POST /v1/turmas`, `PATCH /v1/turmas/:id`, `DELETE /v1/turmas/:id`, `POST /v1/turmas/:id/restore`, `GET /v1/aulas`, `GET /v1/aulas/:id`, `GET /v1/aulas/:id/presencas`, `POST /v1/aulas`, `PATCH /v1/aulas/:id`, `DELETE /v1/aulas/:id`, `POST /v1/aulas/lote`, `GET /v1/aulas/hoje`, `GET /v1/aulas/:id/qrcode`, `POST /v1/aulas/:id/encerrar`, `GET /v1/checkin/disponiveis`, `POST /v1/checkin`, `GET /v1/presencas/pendencias`, `PATCH /v1/presencas/:id/decisao`, `POST /v1/presencas/pendencias/lote`.
-- **Stub/mock (retorno provisorio):** `GET /v1/config/regras-graduacao`, `PUT /v1/config/regras-graduacao/:faixaSlug`, `POST /v1/invites`, `POST /v1/graduacoes`, `POST /v1/auth/refresh`, `POST /v1/auth/forgot-password`, `POST /v1/auth/reset-password`.
+- **Real (Postgres):** `POST /v1/auth/login`, `GET /v1/auth/me`, `GET /v1/auth/convite/:codigo`, `POST /v1/auth/register`, `POST /v1/auth/signup`, `POST /v1/auth/forgot-password`, `POST /v1/auth/reset-password`, `POST /v1/auth/verify-otp`, `GET /v1/home`, `GET /v1/dashboard/aluno`, `GET /v1/dashboard/staff`, `GET /v1/alunos`, `GET /v1/alunos/:id`, `GET /v1/alunos/:id/evolucao`, `GET /v1/alunos/:id/historico-presencas`, `GET /v1/config/tipos-treino`, `GET /v1/turmas`, `GET /v1/turmas/:id`, `POST /v1/turmas`, `PATCH /v1/turmas/:id`, `DELETE /v1/turmas/:id`, `POST /v1/turmas/:id/restore`, `GET /v1/aulas`, `GET /v1/aulas/:id`, `GET /v1/aulas/:id/presencas`, `POST /v1/aulas`, `PATCH /v1/aulas/:id`, `DELETE /v1/aulas/:id`, `POST /v1/aulas/lote`, `GET /v1/aulas/hoje`, `GET /v1/aulas/:id/qrcode`, `POST /v1/aulas/:id/encerrar`, `GET /v1/checkin/disponiveis`, `POST /v1/checkin`, `GET /v1/presencas/pendencias`, `PATCH /v1/presencas/:id/decisao`, `POST /v1/presencas/pendencias/lote`, `POST /v1/invites`.
+- **Stub/mock (retorno provisorio):** `GET /v1/config/regras-graduacao`, `PUT /v1/config/regras-graduacao/:faixaSlug`, `POST /v1/graduacoes`, `POST /v1/auth/refresh`.
 - Prefixo global `/v1`; Swagger em `/v1/docs`.

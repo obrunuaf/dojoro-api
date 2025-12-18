@@ -310,6 +310,7 @@ curl http://localhost:3000/v1/auth/me \
     "message": "Matricula aprovada com sucesso"
   }
   ```
+- **Nota**: Aprovacao/Rejeicao dispara e-mail automatico para o aluno.
 
 ### 3.4 Academia (Settings)
 
@@ -764,9 +765,21 @@ curl -X POST http://localhost:3000/v1/presencas/pendencias/lote \
   ```
 - Turmas: `tipoTreinoId` nos POST/PATCH aceita os mesmos codigos; se invalido, retorna `400` com os codigos permitidos para a academia.
 
+#### 3.6.1 POST `/invites` (real)
+- **Roles:** `INSTRUTOR`, `PROFESSOR`, `ADMIN`, `TI`.
+- **Descricao:** gera um convite manual para um aluno. O sistema gera um token, persiste no banco e envia e-mail de convite se o `email` for fornecido.
+- **Payload:**
+  ```json
+  {
+    "email": "aluno@example.com",
+    "roleSugerido": "ALUNO",
+    "expiraEm": "2025-12-30T00:00:00Z"
+  }
+  ```
+- **Resposta:** `{ "codigo": "token", "roleSugerido": "ALUNO", "validoAte": "...", "academiaId": "..." }`
+
 #### 3.6.2 Outras rotas (planejado/stub)
 - `GET /config/regras-graduacao` / `PUT /config/regras-graduacao/:faixaSlug` - regras de graduacao.
-- `POST /invites` - geracao de convites.
 
 ---
 
