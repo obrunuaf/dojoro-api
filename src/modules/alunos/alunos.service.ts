@@ -8,6 +8,7 @@ import { DatabaseService } from '../../database/database.service';
 import { AlunoDetalheDto } from './dtos/aluno-detalhe.dto';
 import { AlunoDto } from './dtos/aluno.dto';
 import { EvolucaoAlunoDto } from './dtos/evolucao-aluno.dto';
+import { CompletarPerfilDto } from './dtos/completar-perfil.dto';
 
 export type CurrentUser = {
   id: string;
@@ -47,6 +48,70 @@ const DEFAULT_META_AULAS = 60;
 @Injectable()
 export class AlunosService {
   constructor(private readonly databaseService: DatabaseService) {}
+
+  // Get profile completion status for current user
+  async getPerfilStatus(userId: string): Promise<{
+    perfilCompleto: boolean;
+    statusMatricula: string;
+    dataNascimento: string | null;
+    telefone: string | null;
+    faixaDeclarada: string | null;
+  }> {
+    const result = await this.databaseService.queryOne<{
+      perfil_completo: boolean;
+      status_matricula: string;
+      data_nascimento: string | null;
+      telefone: string | null;
+      faixa_declarada: string | null;
+    }>(
+      `SELECT 
+        COALESCE(perfil_completo, false) as perfil_completo,
+        COALESCE(status_matricula::text, 'INCOMPLETO') as status_matricula,
+        data_nascimento::text,
+        telefone,
+        faixa_declarada
+      FROM usuarios WHERE id = $1`,
+      [userId],
+    );
+
+    return {
+      perfilCompleto: result?.perfil_completo ?? false,
+      statusMatricula: result?.status_matricula ?? 'INCOMPLETO',
+      dataNascimento: result?.data_nascimento ?? null,
+      telefone: result?.telefone ?? null,
+      faixaDeclarada: result?.faixa_declarada ?? null,
+    };
+  }
+
+  // Complete user profile
+  async completarPerfil(
+    userId: string,
+    dto: CompletarPerfilDto,
+  ): Promise<{ success: boolean; message: string }> {
+    await this.databaseService.query(
+      `UPDATE usuarios SET
+        data_nascimento = $2,
+        sexo = $3,
+        telefone = $4,
+        faixa_declarada = $5,
+        perfil_completo = true,
+        status_matricula = 'PENDENTE',
+        atualizado_em = NOW()
+      WHERE id = $1`,
+      [
+        userId,
+        dto.dataNascimento,
+        dto.sexo,
+        dto.telefone,
+        dto.faixaDeclarada,
+      ],
+    );
+
+    return {
+      success: true,
+      message: 'Perfil completado com sucesso. Aguardando aprovação da academia.',
+    };
+  }
 
   async listar(currentUser: CurrentUser): Promise<AlunoDto[]> {
     const alunos = await this.databaseService.query<AlunoBaseRow>(

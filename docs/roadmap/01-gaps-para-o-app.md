@@ -66,19 +66,31 @@
 
 ### P0 - Obrigatório para Launch
 
-#### 1. Refresh Token Real
+#### 1. Refresh Token Real ✅ IMPLEMENTADO
 
-- **Status:** STUB (retorna mock)
-- **Impacto:** Tokens expiram (default 1h), usuário perde sessão
-- **Endpoint:** `POST /auth/refresh`
-- **Sugestão:** Implementar rotação de refresh tokens com tabela dedicada
+- **Status:** ✅ IMPLEMENTADO (Dezembro 2024)
+- **Detalhes:**
+  - Tabela `refresh_tokens` com hash, device_info, IP, expiração
+  - Rotação automática: novo token a cada refresh
+  - Revogação individual e em lote
+  - TTL: 30 dias
 
 ```typescript
-// Fluxo esperado
+// Fluxo implementado
 POST /auth/refresh
 { "refreshToken": "current-token" }
 → { "accessToken": "new-jwt", "refreshToken": "new-refresh" }
 ```
+
+#### 2. Sistema de Convite Seguro ✅ IMPLEMENTADO
+
+- **Status:** ✅ IMPLEMENTADO (Dezembro 2024)
+- **Detalhes:**
+  - Token 32 bytes + OTP 6 dígitos + Signature HMAC
+  - Hash SHA256 do token (não armazena plaintext)
+  - Expiração 24h, rate limit 5 tentativas
+  - Deep link: `dojoro://register?t=...&o=...&s=...`
+  - Endpoint: `POST /auth/register-secure`
 
 ---
 

@@ -1,6 +1,8 @@
 import {
+  Body,
   Controller,
   Get,
+  Patch,
   Param,
   ParseUUIDPipe,
   UseGuards,
@@ -20,15 +22,36 @@ import {
 import { AlunoDetalheDto } from './dtos/aluno-detalhe.dto';
 import { AlunoDto } from './dtos/aluno.dto';
 import { EvolucaoAlunoDto } from './dtos/evolucao-aluno.dto';
+import { CompletarPerfilDto } from './dtos/completar-perfil.dto';
 
 @ApiTags('Alunos')
 @ApiAuth()
-@UseGuards(JwtAuthGuard, AcademiaStatusGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('alunos')
 export class AlunosController {
   constructor(private readonly alunosService: AlunosService) {}
 
+  @Get('perfil-status')
+  @Roles(UserRole.ALUNO, UserRole.INSTRUTOR, UserRole.PROFESSOR, UserRole.ADMIN, UserRole.TI)
+  @ApiOperation({ summary: 'Verifica status de completude do perfil' })
+  async getPerfilStatus(
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.alunosService.getPerfilStatus(user.id);
+  }
+
+  @Patch('completar-perfil')
+  @Roles(UserRole.ALUNO, UserRole.INSTRUTOR, UserRole.PROFESSOR, UserRole.ADMIN, UserRole.TI)
+  @ApiOperation({ summary: 'Completa o perfil do usuário' })
+  async completarPerfil(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() dto: CompletarPerfilDto,
+  ) {
+    return this.alunosService.completarPerfil(user.id, dto);
+  }
+
   @Get()
+  @UseGuards(AcademiaStatusGuard)
   @Roles(UserRole.INSTRUTOR, UserRole.PROFESSOR, UserRole.ADMIN, UserRole.TI)
   @ApiOperation({ summary: 'Lista alunos' })
   @ApiOkResponse({ type: [AlunoDto] })
@@ -39,6 +62,7 @@ export class AlunosController {
   }
 
   @Get(':id')
+  @UseGuards(AcademiaStatusGuard)
   @Roles(
     UserRole.ALUNO,
     UserRole.INSTRUTOR,
@@ -56,6 +80,7 @@ export class AlunosController {
   }
 
   @Get(':id/evolucao')
+  @UseGuards(AcademiaStatusGuard)
   @Roles(
     UserRole.ALUNO,
     UserRole.INSTRUTOR,
