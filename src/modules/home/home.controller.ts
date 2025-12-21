@@ -10,14 +10,13 @@ import { CurrentUser } from '../../common/decorators/user.decorator';
 import { UserRole } from '../../common/enums/user-role.enum';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
-import { AcademiaStatusGuard } from '../../common/guards/academia-status.guard';
 import { HomeResponseDto } from './dtos/home-response.dto';
 import { HomeQueryDto } from './dtos/home-query.dto';
 import { HomeService } from './home.service';
 
 @ApiTags('Home')
 @ApiAuth()
-@UseGuards(JwtAuthGuard, AcademiaStatusGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard) // Removido AcademiaStatusGuard para permitir PENDENTE
 @Controller('home')
 export class HomeController {
   constructor(private readonly homeService: HomeService) {}

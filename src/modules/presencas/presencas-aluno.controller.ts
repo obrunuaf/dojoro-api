@@ -19,7 +19,7 @@ import { HistoricoPresencaDto } from './dtos/historico-presenca.dto';
 
 @ApiTags('Presencas')
 @ApiAuth()
-@UseGuards(JwtAuthGuard, AcademiaStatusGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard) // AcademiaStatusGuard removido - PENDENTE pode ver histórico
 @Controller('alunos')
 export class AlunoPresencasController {
   constructor(private readonly presencasService: PresencasService) {}

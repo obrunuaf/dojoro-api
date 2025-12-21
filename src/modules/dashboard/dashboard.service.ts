@@ -98,6 +98,9 @@ export class DashboardService {
           metaAulas,
           progressoPercentual: 0,
           statusMatricula,
+          treinosMes: 0,
+          frequenciaMes: 0,
+          semanasConsecutivas: 0,
         };
       }
 
@@ -160,6 +163,9 @@ export class DashboardService {
             )
           : 0;
 
+      // Stats de engajamento
+      const statsEngajamento = await this.calcularStatsEngajamento(user);
+
       return {
         proximaAulaId: proximaAula?.id ?? null,
         proximaAulaHorario: proximaAula?.data_inicio
@@ -170,6 +176,7 @@ export class DashboardService {
         metaAulas,
         progressoPercentual,
         statusMatricula,
+        ...statsEngajamento,
       };
     } catch (error) {
       throw new InternalServerErrorException(
@@ -253,5 +260,80 @@ export class DashboardService {
     }
 
     return DEFAULT_META_AULAS;
+  }
+
+  private async calcularStatsEngajamento(user: CurrentUser): Promise<{
+    treinosMes: number;
+    frequenciaMes: number;
+    semanasConsecutivas: number;
+  }> {
+    // Treinos no mês atual
+    const treinosMesResult = await this.databaseService.queryOne<{ total: number }>(
+      `
+        SELECT COUNT(*)::int AS total
+        FROM presencas p
+        JOIN aulas a ON a.id = p.aula_id
+        WHERE p.aluno_id = $1
+          AND p.academia_id = $2
+          AND p.status = 'PRESENTE'
+          AND DATE_TRUNC('month', a.data_inicio) = DATE_TRUNC('month', NOW())
+          AND a.deleted_at IS NULL;
+      `,
+      [user.id, user.academiaId],
+    );
+    const treinosMes = treinosMesResult?.total ?? 0;
+
+    // Aulas disponíveis no mês (para calcular frequência)
+    const aulasMesResult = await this.databaseService.queryOne<{ total: number }>(
+      `
+        SELECT COUNT(*)::int AS total
+        FROM aulas a
+        JOIN turmas t ON t.id = a.turma_id
+        WHERE a.academia_id = $1
+          AND DATE_TRUNC('month', a.data_inicio) = DATE_TRUNC('month', NOW())
+          AND a.data_inicio <= NOW()
+          AND a.status <> 'CANCELADA'
+          AND a.deleted_at IS NULL
+          AND t.deleted_at IS NULL;
+      `,
+      [user.academiaId],
+    );
+    const aulasMes = aulasMesResult?.total ?? 0;
+    const frequenciaMes = aulasMes > 0 
+      ? Math.min(100, Math.floor((treinosMes * 100) / aulasMes))
+      : 0;
+
+    // Semanas consecutivas com treino
+    const semanasResult = await this.databaseService.queryOne<{ semanas: number }>(
+      `
+        WITH semanas_com_treino AS (
+          SELECT DISTINCT DATE_TRUNC('week', a.data_inicio)::date AS semana
+          FROM presencas p
+          JOIN aulas a ON a.id = p.aula_id
+          WHERE p.aluno_id = $1
+            AND p.academia_id = $2
+            AND p.status = 'PRESENTE'
+            AND a.deleted_at IS NULL
+          ORDER BY semana DESC
+        ),
+        semanas_ordenadas AS (
+          SELECT semana,
+                 ROW_NUMBER() OVER (ORDER BY semana DESC) AS rn,
+                 semana - (ROW_NUMBER() OVER (ORDER BY semana DESC) * INTERVAL '1 week') AS grupo
+          FROM semanas_com_treino
+        )
+        SELECT COUNT(*)::int AS semanas
+        FROM semanas_ordenadas
+        WHERE grupo = (SELECT grupo FROM semanas_ordenadas WHERE rn = 1);
+      `,
+      [user.id, user.academiaId],
+    );
+    const semanasConsecutivas = semanasResult?.semanas ?? 0;
+
+    return {
+      treinosMes,
+      frequenciaMes,
+      semanasConsecutivas,
+    };
   }
 }

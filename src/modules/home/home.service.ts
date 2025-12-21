@@ -54,10 +54,17 @@ export class HomeService {
         academiaId: currentUser.academiaId,
       });
 
-      const checkins = await this.checkinService.listarDisponiveis({
-        ...currentUser,
-        roles: rolesNormalized,
-      });
+      // Checkins - pode falhar se matrícula não está ativa (PENDENTE)
+      let checkins: any[] = [];
+      try {
+        checkins = await this.checkinService.listarDisponiveis({
+          ...currentUser,
+          roles: rolesNormalized,
+        });
+      } catch {
+        // PENDENTE não tem acesso a check-ins, retorna vazio
+        checkins = [];
+      }
 
       const ultimasPresencas = await this.buscarUltimasPresencas(
         currentUser,

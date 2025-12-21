@@ -21,4 +21,14 @@ export class AlunoDashboardDto {
 
   @ApiProperty()
   statusMatricula: string;
+
+  // Stats de engajamento
+  @ApiProperty({ description: 'Total de treinos no mês atual' })
+  treinosMes: number;
+
+  @ApiProperty({ description: 'Frequência percentual no mês (0-100)' })
+  frequenciaMes: number;
+
+  @ApiProperty({ description: 'Semanas consecutivas com treino' })
+  semanasConsecutivas: number;
 }

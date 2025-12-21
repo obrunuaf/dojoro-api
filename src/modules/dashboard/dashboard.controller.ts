@@ -10,14 +10,13 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../../common/enums/user-role.enum';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
-import { AcademiaStatusGuard } from '../../common/guards/academia-status.guard';
 import { DashboardService } from './dashboard.service';
 import { AlunoDashboardDto } from './dtos/aluno-dashboard.dto';
 import { StaffDashboardDto } from './dtos/staff-dashboard.dto';
 
 @ApiTags('Dashboard')
 @ApiAuth()
-@UseGuards(JwtAuthGuard, AcademiaStatusGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard) // Removido AcademiaStatusGuard para permitir PENDENTE
 @Controller('dashboard')
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}

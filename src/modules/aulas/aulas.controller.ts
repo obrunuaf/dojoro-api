@@ -46,7 +46,7 @@ import { UpdateAulaDto } from './dtos/update-aula.dto';
 
 @ApiTags('Aulas')
 @ApiAuth()
-@UseGuards(JwtAuthGuard, AcademiaStatusGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard) // AcademiaStatusGuard removido - PENDENTE pode ver aulas
 @Controller('aulas')
 export class AulasController {
   constructor(private readonly aulasService: AulasService) {}

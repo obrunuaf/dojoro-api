@@ -62,7 +62,7 @@ export class AlunosController {
   }
 
   @Get(':id')
-  @UseGuards(AcademiaStatusGuard)
+  // AcademiaStatusGuard removido - PENDENTE pode ver perfil
   @Roles(
     UserRole.ALUNO,
     UserRole.INSTRUTOR,
@@ -80,7 +80,7 @@ export class AlunosController {
   }
 
   @Get(':id/evolucao')
-  @UseGuards(AcademiaStatusGuard)
+  // AcademiaStatusGuard removido - PENDENTE pode ver evolução
   @Roles(
     UserRole.ALUNO,
     UserRole.INSTRUTOR,
