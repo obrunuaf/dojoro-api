@@ -100,6 +100,7 @@ export class AulasService {
           t.nome as turma_nome,
           to_char(t.horario_padrao, 'HH24:MI') as turma_horario_padrao,
           tt.nome as tipo_treino,
+          t.instrutor_padrao_id as instrutor_id,
           instrutor.nome_completo as instrutor_nome,
           a.deleted_at,
           a.academia_id,
@@ -133,6 +134,7 @@ export class AulasService {
       turmaNome: aula.turma_nome,
       turmaHorarioPadrao: aula.turma_horario_padrao ?? '',
       tipoTreino: aula.tipo_treino,
+      instrutorId: aula.instrutor_id ?? null,
       instrutorNome: aula.instrutor_nome ?? null,
       presentes: aula.presentes ?? 0,
     }));

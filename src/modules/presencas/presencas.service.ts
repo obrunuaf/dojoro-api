@@ -95,6 +95,20 @@ export class PresencasService {
     const auditSelect =
       auditSelectParts.length > 0 ? `, ${auditSelectParts.join(', ')}` : '';
 
+    // INSTRUTOR only sees pendencias from their own classes
+    const isInstructorOnly = 
+      currentUser.roles.includes(UserRole.INSTRUTOR) && 
+      !currentUser.roles.includes(UserRole.PROFESSOR) &&
+      !currentUser.roles.includes(UserRole.ADMIN) &&
+      !currentUser.roles.includes(UserRole.TI);
+
+    const instrutorFilter = isInstructorOnly 
+      ? `and t.instrutor_padrao_id = $4` 
+      : '';
+    const params = isInstructorOnly
+      ? [currentUser.academiaId, range.startUtc, range.endUtc, currentUser.id]
+      : [currentUser.academiaId, range.startUtc, range.endUtc];
+
     const pendencias = await this.databaseService.query<PendenciaRow>(
       `
         select
@@ -117,10 +131,11 @@ export class PresencasService {
           and p.status = 'PENDENTE'
           and a.data_inicio >= $2
           and a.data_inicio < $3
+          ${instrutorFilter}
         order by a.data_inicio asc, p.criado_em asc
         limit 100;
       `,
-      [currentUser.academiaId, range.startUtc, range.endUtc],
+      params,
     );
 
     return {

@@ -25,6 +25,9 @@ export class AulaDto {
   @ApiProperty()
   tipoTreino: string;
 
+  @ApiProperty({ nullable: true, description: 'ID do instrutor da turma' })
+  instrutorId: string | null;
+
   @ApiProperty({ nullable: true })
   instrutorNome: string | null;
 
