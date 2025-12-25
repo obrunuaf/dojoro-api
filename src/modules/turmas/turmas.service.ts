@@ -60,7 +60,14 @@ export class TurmasService {
           t.dias_semana,
           to_char(t.horario_padrao, 'HH24:MI') as horario_padrao,
           tt.nome as tipo_treino,
-          tt.cor_identificacao as tipo_treino_cor,
+          COALESCE(tt.cor_identificacao,
+            CASE
+              WHEN lower(tt.nome) LIKE '%kids%' OR lower(tt.nome) LIKE '%infantil%' THEN '#22C55E'
+              WHEN lower(tt.nome) LIKE '%no-gi%' OR lower(tt.nome) LIKE '%nogi%' THEN '#F97316'
+              WHEN lower(tt.nome) LIKE '%gi%' THEN '#3B82F6'
+              ELSE '#6B7280'
+            END
+          ) as tipo_treino_cor,
           instrutor.id as instrutor_id,
           instrutor.nome_completo as instrutor_nome,
           t.deleted_at
@@ -161,7 +168,11 @@ export class TurmasService {
       id: turma.id,
       nome: turma.nome,
       tipoTreino: tipoTreino.nome,
-      tipoTreinoCor: tipoTreino.cor_identificacao ?? null,
+      tipoTreinoCor: tipoTreino.cor_identificacao || (
+        tipoTreino.nome.toLowerCase().includes('kids') || tipoTreino.nome.toLowerCase().includes('infantil') ? '#22C55E' :
+        tipoTreino.nome.toLowerCase().includes('no-gi') || tipoTreino.nome.toLowerCase().includes('nogi') ? '#F97316' :
+        tipoTreino.nome.toLowerCase().includes('gi') ? '#3B82F6' : '#6B7280'
+      ),
       diasSemana: dto.diasSemana.map(Number),
       horarioPadrao: dto.horarioPadrao,
       instrutorPadraoId: dto.instrutorPadraoId ?? null,
@@ -228,8 +239,17 @@ export class TurmasService {
            to_char(horario_padrao, 'HH24:MI') as horario_padrao,
            instrutor_padrao_id as instrutor_id,
            (select nome from tipos_treino where id = turmas.tipo_treino_id) as tipo_treino,
-           (select cor_identificacao from tipos_treino where id = turmas.tipo_treino_id) as tipo_treino_cor,
-           (select nome_completo from usuarios where id = turmas.instrutor_padrao_id) as instrutor_nome,
+           (select 
+              COALESCE(cor_identificacao, 
+                CASE 
+                  WHEN lower(nome) LIKE '%kids%' OR lower(nome) LIKE '%infantil%' THEN '#22C55E'
+                  WHEN lower(nome) LIKE '%no-gi%' OR lower(nome) LIKE '%nogi%' THEN '#F97316'
+                  WHEN lower(nome) LIKE '%gi%' THEN '#3B82F6'
+                  ELSE '#6B7280'
+                END
+              )
+            from tipos_treino where id = turmas.tipo_treino_id) as tipo_treino_cor,
+           (select nome_completo from usuarios where id = instrutor_padrao_id) as instrutor_nome,
            deleted_at,
            academia_id;
       `,
@@ -378,7 +398,14 @@ export class TurmasService {
           t.dias_semana,
           to_char(t.horario_padrao, 'HH24:MI') as horario_padrao,
           tt.nome as tipo_treino,
-          tt.cor_identificacao as tipo_treino_cor,
+          COALESCE(tt.cor_identificacao, 
+            CASE 
+              WHEN lower(tt.nome) LIKE '%kids%' OR lower(tt.nome) LIKE '%infantil%' THEN '#22C55E'
+              WHEN lower(tt.nome) LIKE '%no-gi%' OR lower(tt.nome) LIKE '%nogi%' THEN '#F97316'
+              WHEN lower(tt.nome) LIKE '%gi%' THEN '#3B82F6'
+              ELSE '#6B7280'
+            END
+          ) as tipo_treino_cor,
           t.tipo_treino_id,
           t.instrutor_padrao_id as instrutor_id,
           instrutor.nome_completo as instrutor_nome,

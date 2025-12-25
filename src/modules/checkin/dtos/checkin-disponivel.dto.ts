@@ -16,6 +16,9 @@ export class CheckinDisponivelDto {
   @ApiProperty({ required: false, nullable: true })
   tipoTreino: string | null;
 
+  @ApiProperty({ required: false, nullable: true })
+  tipoTreinoCor: string | null;
+
   @ApiProperty()
   statusAula: string;
 

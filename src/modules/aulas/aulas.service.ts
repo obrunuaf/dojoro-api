@@ -37,6 +37,7 @@ type AulaRow = {
   turma_id: string;
   turma_nome: string;
   tipo_treino: string;
+  tipo_treino_cor: string | null;
   instrutor_nome: string | null;
   instrutor_id?: string | null;
   turma_horario_padrao?: string | null;
@@ -100,7 +101,15 @@ export class AulasService {
           t.nome as turma_nome,
           to_char(t.horario_padrao, 'HH24:MI') as turma_horario_padrao,
           tt.nome as tipo_treino,
-          t.instrutor_padrao_id as instrutor_id,
+          COALESCE(tt.cor_identificacao, 
+            CASE 
+              WHEN lower(tt.nome) LIKE '%kids%' OR lower(tt.nome) LIKE '%infantil%' THEN '#22C55E'
+              WHEN lower(tt.nome) LIKE '%no-gi%' OR lower(tt.nome) LIKE '%nogi%' THEN '#F97316'
+              WHEN lower(tt.nome) LIKE '%gi%' THEN '#3B82F6'
+              ELSE '#6B7280'
+            END
+          ) as tipo_treino_cor,
+          COALESCE(a.instrutor_id, t.instrutor_padrao_id) as instrutor_id,
           instrutor.nome_completo as instrutor_nome,
           a.deleted_at,
           a.academia_id,
@@ -113,7 +122,7 @@ export class AulasService {
         from aulas a
         join turmas t on t.id = a.turma_id
         join tipos_treino tt on tt.id = t.tipo_treino_id
-        left join usuarios instrutor on instrutor.id = t.instrutor_padrao_id
+        left join usuarios instrutor on instrutor.id = COALESCE(a.instrutor_id, t.instrutor_padrao_id)
         where a.academia_id = $1
           and a.data_inicio >= $2
           and a.data_inicio < $3
@@ -134,6 +143,7 @@ export class AulasService {
       turmaNome: aula.turma_nome,
       turmaHorarioPadrao: aula.turma_horario_padrao ?? '',
       tipoTreino: aula.tipo_treino,
+      tipoTreinoCor: aula.tipo_treino_cor,
       instrutorId: aula.instrutor_id ?? null,
       instrutorNome: aula.instrutor_nome ?? null,
       presentes: aula.presentes ?? 0,
@@ -192,8 +202,9 @@ export class AulasService {
           a.turma_id,
           t.nome as turma_nome,
           tt.nome as tipo_treino,
+          tt.cor_identificacao as tipo_treino_cor,
           instrutor.nome_completo as instrutor_nome,
-          t.instrutor_padrao_id as instrutor_id,
+          COALESCE(a.instrutor_id, t.instrutor_padrao_id) as instrutor_id,
           to_char(t.horario_padrao, 'HH24:MI') as turma_horario_padrao,
           t.dias_semana as turma_dias_semana,
           a.deleted_at,
@@ -201,7 +212,7 @@ export class AulasService {
         from aulas a
         join turmas t on t.id = a.turma_id
         join tipos_treino tt on tt.id = t.tipo_treino_id
-        left join usuarios instrutor on instrutor.id = t.instrutor_padrao_id
+        left join usuarios instrutor on instrutor.id = COALESCE(a.instrutor_id, t.instrutor_padrao_id)
         where ${where.join(' and ')}
           order by a.data_inicio asc;
       `,
@@ -327,6 +338,16 @@ export class AulasService {
           turma_id,
           (select nome from turmas where id = $2) as turma_nome,
           (select nome from tipos_treino where id = (select tipo_treino_id from turmas where id = $2)) as tipo_treino,
+          (select 
+            COALESCE(cor_identificacao, 
+              CASE 
+                WHEN lower(nome) LIKE '%kids%' OR lower(nome) LIKE '%infantil%' THEN '#22C55E'
+                WHEN lower(nome) LIKE '%no-gi%' OR lower(nome) LIKE '%nogi%' THEN '#F97316'
+                WHEN lower(nome) LIKE '%gi%' THEN '#3B82F6'
+                ELSE '#6B7280'
+              END
+            ) 
+            from tipos_treino where id = (select tipo_treino_id from turmas where id = $2)) as tipo_treino_cor,
           (select u.nome_completo from usuarios u join turmas t on t.instrutor_padrao_id = u.id where t.id = $2) as instrutor_nome,
           (select instrutor_padrao_id from turmas where id = $2) as instrutor_id,
           (select to_char(horario_padrao, 'HH24:MI') from turmas where id = $2) as turma_horario_padrao,
@@ -531,6 +552,7 @@ export class AulasService {
     if (dto.dataInicio !== undefined) push('data_inicio', dto.dataInicio);
     if (dto.dataFim !== undefined) push('data_fim', dto.dataFim);
     if (dto.status !== undefined) push('status', dto.status);
+    if (dto.instrutorId !== undefined) push('instrutor_id', dto.instrutorId);
 
     if (updates.length === 0) {
       return this.mapRow(aula);
@@ -552,8 +574,18 @@ export class AulasService {
            turma_id,
            (select nome from turmas where id = turma_id) as turma_nome,
            (select nome from tipos_treino where id = (select tipo_treino_id from turmas where id = turma_id)) as tipo_treino,
-           (select u.nome_completo from usuarios u join turmas t on t.instrutor_padrao_id = u.id where t.id = turma_id) as instrutor_nome,
-           (select instrutor_padrao_id from turmas where id = turma_id) as instrutor_id,
+           (select 
+            COALESCE(cor_identificacao, 
+              CASE 
+                WHEN lower(nome) LIKE '%kids%' OR lower(nome) LIKE '%infantil%' THEN '#22C55E'
+                WHEN lower(nome) LIKE '%no-gi%' OR lower(nome) LIKE '%nogi%' THEN '#F97316'
+                WHEN lower(nome) LIKE '%gi%' THEN '#3B82F6'
+                ELSE '#6B7280'
+              END
+            ) 
+            from tipos_treino where id = (select tipo_treino_id from turmas where id = turma_id)) as tipo_treino_cor,
+           (select u.nome_completo from usuarios u where u.id = COALESCE(instrutor_id, (select instrutor_padrao_id from turmas where id = turma_id))) as instrutor_nome,
+           COALESCE(instrutor_id, (select instrutor_padrao_id from turmas where id = turma_id)) as instrutor_id,
            (select to_char(horario_padrao, 'HH24:MI') from turmas where id = turma_id) as turma_horario_padrao,
            (select dias_semana from turmas where id = turma_id) as turma_dias_semana,
            qr_token,
@@ -713,6 +745,16 @@ export class AulasService {
            turma_id,
            (select nome from turmas where id = turma_id) as turma_nome,
            (select nome from tipos_treino where id = (select tipo_treino_id from turmas where id = turma_id)) as tipo_treino,
+           (select 
+            COALESCE(cor_identificacao, 
+              CASE 
+                WHEN lower(nome) LIKE '%kids%' OR lower(nome) LIKE '%infantil%' THEN '#22C55E'
+                WHEN lower(nome) LIKE '%no-gi%' OR lower(nome) LIKE '%nogi%' THEN '#F97316'
+                WHEN lower(nome) LIKE '%gi%' THEN '#3B82F6'
+                ELSE '#6B7280'
+              END
+            ) 
+            from tipos_treino where id = (select tipo_treino_id from turmas where id = turma_id)) as tipo_treino_cor,
            (select u.nome_completo from usuarios u join turmas t on t.instrutor_padrao_id = u.id where t.id = turma_id) as instrutor_nome,
            (select instrutor_padrao_id from turmas where id = turma_id) as instrutor_id,
            (select to_char(horario_padrao, 'HH24:MI') from turmas where id = turma_id) as turma_horario_padrao,
@@ -1214,6 +1256,14 @@ export class AulasService {
           a.turma_id,
           t.nome as turma_nome,
           tt.nome as tipo_treino,
+          COALESCE(tt.cor_identificacao, 
+            CASE 
+              WHEN lower(tt.nome) LIKE '%kids%' OR lower(tt.nome) LIKE '%infantil%' THEN '#22C55E'
+              WHEN lower(tt.nome) LIKE '%no-gi%' OR lower(tt.nome) LIKE '%nogi%' THEN '#F97316'
+              WHEN lower(tt.nome) LIKE '%gi%' THEN '#3B82F6'
+              ELSE '#6B7280'
+            END
+          ) as tipo_treino_cor,
           instrutor.nome_completo as instrutor_nome,
           t.instrutor_padrao_id as instrutor_id,
           to_char(t.horario_padrao, 'HH24:MI') as turma_horario_padrao,
@@ -1260,6 +1310,7 @@ export class AulasService {
       dataFim: new Date(row.data_fim).toISOString(),
       status: row.status,
       tipoTreino: row.tipo_treino,
+      tipoTreinoCor: row.tipo_treino_cor,
       instrutorPadraoId: row.instrutor_id ?? null,
       instrutorNome: row.instrutor_nome ?? null,
       qrToken: opts?.includeQr ? row.qr_token ?? null : null,

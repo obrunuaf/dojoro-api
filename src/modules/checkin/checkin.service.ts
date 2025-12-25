@@ -26,6 +26,7 @@ type CheckinDisponivelRow = {
   status_aula: string;
   turma_nome: string;
   tipo_treino: string | null;
+  tipo_treino_cor: string | null;
   ja_fez_checkin: boolean;
 };
 
@@ -73,6 +74,14 @@ export class CheckinService {
           a.status as status_aula,
           t.nome as turma_nome,
           tt.nome as tipo_treino,
+          COALESCE(tt.cor_identificacao, 
+            CASE 
+              WHEN lower(tt.nome) LIKE '%kids%' OR lower(tt.nome) LIKE '%infantil%' THEN '#22C55E'
+              WHEN lower(tt.nome) LIKE '%no-gi%' OR lower(tt.nome) LIKE '%nogi%' THEN '#F97316'
+              WHEN lower(tt.nome) LIKE '%gi%' THEN '#3B82F6'
+              ELSE '#6B7280'
+            END
+          ) as tipo_treino_cor,
           (p.id is not null) as ja_fez_checkin
         from aulas a
         join turmas t on t.id = a.turma_id
@@ -98,6 +107,7 @@ export class CheckinService {
       dataInicio: new Date(row.data_inicio).toISOString(),
       dataFim: new Date(row.data_fim).toISOString(),
       tipoTreino: row.tipo_treino ?? null,
+      tipoTreinoCor: row.tipo_treino_cor ?? null,
       statusAula: row.status_aula,
       jaFezCheckin: !!row.ja_fez_checkin,
     }));

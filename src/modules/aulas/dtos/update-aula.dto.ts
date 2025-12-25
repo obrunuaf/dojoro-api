@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsIn, IsOptional } from 'class-validator';
+import { IsDateString, IsIn, IsOptional, IsUUID } from 'class-validator';
 
 export class UpdateAulaDto {
   @ApiPropertyOptional({ description: 'Data/hora de inicio (ISO)' })
@@ -18,4 +18,10 @@ export class UpdateAulaDto {
   @IsOptional()
   @IsIn(['AGENDADA', 'ENCERRADA', 'CANCELADA'])
   status?: string;
+
+  @ApiPropertyOptional({ description: 'ID do instrutor designado para esta aula' })
+  @IsOptional()
+  @IsUUID()
+  instrutorId?: string;
 }
+

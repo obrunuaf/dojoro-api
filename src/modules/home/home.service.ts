@@ -172,6 +172,8 @@ export class HomeService {
       aula_id: string;
       turma_nome: string;
       data_inicio: string;
+      tipo_treino: string | null;
+      tipo_treino_cor: string | null;
       status: string;
       origem: string;
     }>(
@@ -180,11 +182,21 @@ export class HomeService {
           p.aula_id,
           t.nome as turma_nome,
           a.data_inicio,
+          tt.nome as tipo_treino,
+          COALESCE(tt.cor_identificacao, 
+            CASE 
+              WHEN lower(tt.nome) LIKE '%kids%' OR lower(tt.nome) LIKE '%infantil%' THEN '#22C55E'
+              WHEN lower(tt.nome) LIKE '%no-gi%' OR lower(tt.nome) LIKE '%nogi%' THEN '#F97316'
+              WHEN lower(tt.nome) LIKE '%gi%' THEN '#3B82F6'
+              ELSE '#6B7280'
+            END
+          ) as tipo_treino_cor,
           p.status,
           p.origem
         from presencas p
         join aulas a on a.id = p.aula_id
         join turmas t on t.id = a.turma_id
+        join tipos_treino tt on tt.id = t.tipo_treino_id
         where p.aluno_id = $1
           and p.academia_id = $2
           and a.academia_id = $2
@@ -200,6 +212,8 @@ export class HomeService {
       aulaId: row.aula_id,
       turmaNome: row.turma_nome,
       dataInicio: new Date(row.data_inicio).toISOString(),
+      tipoTreino: row.tipo_treino,
+      tipoTreinoCor: row.tipo_treino_cor,
       status: row.status,
       origem: row.origem,
     }));

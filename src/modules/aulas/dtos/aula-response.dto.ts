@@ -29,6 +29,9 @@ export class AulaResponseDto {
   tipoTreino: string;
 
   @ApiProperty({ nullable: true })
+  tipoTreinoCor: string | null;
+
+  @ApiProperty({ nullable: true })
   instrutorPadraoId: string | null;
 
   @ApiProperty({ nullable: true })
