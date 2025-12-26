@@ -19,8 +19,14 @@ export class TurmaResponseDto {
   })
   diasSemana: number[];
 
-  @ApiProperty({ description: 'Horario padrao no formato HH:MM (hora local)' })
-  horarioPadrao: string;
+  @ApiProperty({ description: 'Horário de início no formato HH:MM' })
+  horaInicio: string;
+
+  @ApiProperty({ description: 'Horário de término no formato HH:MM' })
+  horaFim: string;
+
+  @ApiProperty({ description: 'Duração em minutos (calculado)' })
+  duracaoMinutos: number;
 
   @ApiProperty({ nullable: true })
   instrutorPadraoId: string | null;

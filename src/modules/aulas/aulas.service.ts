@@ -40,7 +40,7 @@ type AulaRow = {
   tipo_treino_cor: string | null;
   instrutor_nome: string | null;
   instrutor_id?: string | null;
-  turma_horario_padrao?: string | null;
+  turma_hora_inicio?: string | null;
   turma_dias_semana?: number[] | null;
   qr_token?: string | null;
   qr_expires_at?: string | null;
@@ -99,7 +99,7 @@ export class AulasService {
           a.status,
           t.id as turma_id,
           t.nome as turma_nome,
-          to_char(t.horario_padrao, 'HH24:MI') as turma_horario_padrao,
+          to_char(t.hora_inicio, 'HH24:MI') as turma_hora_inicio,
           tt.nome as tipo_treino,
           COALESCE(tt.cor_identificacao, 
             CASE 
@@ -141,7 +141,7 @@ export class AulasService {
       status: aula.status,
       turmaId: aula.turma_id,
       turmaNome: aula.turma_nome,
-      turmaHorarioPadrao: aula.turma_horario_padrao ?? '',
+      turmaHorarioPadrao: aula.turma_hora_inicio ?? '',
       tipoTreino: aula.tipo_treino,
       tipoTreinoCor: aula.tipo_treino_cor,
       instrutorId: aula.instrutor_id ?? null,
@@ -191,8 +191,12 @@ export class AulasService {
     currentUser: CurrentUser,
   ): Promise<AulaResponseDto[]> {
     const { where, params } = await this.buildListQuery(query, currentUser);
+    
+    // Add user ID as final parameter for meuCheckin subquery
+    const userIdParamIndex = params.length + 1;
+    params.push(currentUser.id);
 
-    const aulas = await this.databaseService.query<AulaRow>(
+    const aulas = await this.databaseService.query<AulaRow & { presentes: number; meu_checkin: string | null }>(
       `
         select
           a.id,
@@ -205,10 +209,23 @@ export class AulasService {
           tt.cor_identificacao as tipo_treino_cor,
           instrutor.nome_completo as instrutor_nome,
           COALESCE(a.instrutor_id, t.instrutor_padrao_id) as instrutor_id,
-          to_char(t.horario_padrao, 'HH24:MI') as turma_horario_padrao,
+          to_char(t.hora_inicio, 'HH24:MI') as turma_hora_inicio,
           t.dias_semana as turma_dias_semana,
           a.deleted_at,
-          a.academia_id
+          a.academia_id,
+          (
+            select count(*)::int 
+            from presencas p 
+            where p.aula_id = a.id 
+              and p.status = 'PRESENTE'
+          ) as presentes,
+          (
+            select p.status 
+            from presencas p 
+            where p.aula_id = a.id 
+              and p.aluno_id = $${userIdParamIndex}
+            limit 1
+          ) as meu_checkin
         from aulas a
         join turmas t on t.id = a.turma_id
         join tipos_treino tt on tt.id = t.tipo_treino_id
@@ -219,8 +236,10 @@ export class AulasService {
       params,
     );
 
+
     return aulas.map((row) => this.mapRow(row));
   }
+
 
   async detalhar(
     id: string,
@@ -318,7 +337,7 @@ export class AulasService {
   ): Promise<AulaResponseDto> {
     this.ensureStaff(currentUser);
     await this.validarTurma(dto.turmaId, currentUser.academiaId);
-    this.ensureDateOrder(dto.dataInicio, dto.dataFim);
+    await this.ensureDateOrder(dto.dataInicio, dto.dataFim, currentUser.academiaId);
     await this.ensureAulaUnica(dto.turmaId, dto.dataInicio, currentUser.academiaId);
 
     const created = await this.databaseService.queryOne<AulaRow>(
@@ -350,7 +369,7 @@ export class AulasService {
             from tipos_treino where id = (select tipo_treino_id from turmas where id = $2)) as tipo_treino_cor,
           (select u.nome_completo from usuarios u join turmas t on t.instrutor_padrao_id = u.id where t.id = $2) as instrutor_nome,
           (select instrutor_padrao_id from turmas where id = $2) as instrutor_id,
-          (select to_char(horario_padrao, 'HH24:MI') from turmas where id = $2) as turma_horario_padrao,
+          (select to_char(hora_inicio, 'HH24:MI') from turmas where id = $2) as turma_hora_inicio,
           (select dias_semana from turmas where id = $2) as turma_dias_semana,
           qr_token,
           qr_expires_at,
@@ -386,14 +405,14 @@ export class AulasService {
     const turma = await this.databaseService.queryOne<{
       id: string;
       dias_semana: number[];
-      horario_padrao: string;
+      hora_inicio: string;
       deleted_at: string | null;
     }>(
       `
         select
           id,
           dias_semana,
-          to_char(horario_padrao, 'HH24:MI') as horario_padrao,
+          to_char(hora_inicio, 'HH24:MI') as hora_inicio,
           deleted_at
         from turmas
         where id = $1
@@ -418,7 +437,7 @@ export class AulasService {
       );
     }
 
-    const horaInicio = dto.horaInicio ?? turma.horario_padrao;
+    const horaInicio = dto.horaInicio ?? turma.hora_inicio;
     const duracaoMinutos = dto.duracaoMinutos ?? 90;
     const tz = this.databaseService.getAppTimezone();
 
@@ -524,9 +543,10 @@ export class AulasService {
     }
 
     if (dto.dataInicio || dto.dataFim) {
-      this.ensureDateOrder(
+      await this.ensureDateOrder(
         dto.dataInicio ?? aula.data_inicio,
         dto.dataFim ?? aula.data_fim,
+        currentUser.academiaId,
       );
     }
 
@@ -586,7 +606,7 @@ export class AulasService {
             from tipos_treino where id = (select tipo_treino_id from turmas where id = turma_id)) as tipo_treino_cor,
            (select u.nome_completo from usuarios u where u.id = COALESCE(instrutor_id, (select instrutor_padrao_id from turmas where id = turma_id))) as instrutor_nome,
            COALESCE(instrutor_id, (select instrutor_padrao_id from turmas where id = turma_id)) as instrutor_id,
-           (select to_char(horario_padrao, 'HH24:MI') from turmas where id = turma_id) as turma_horario_padrao,
+           (select to_char(hora_inicio, 'HH24:MI') from turmas where id = turma_id) as turma_hora_inicio,
            (select dias_semana from turmas where id = turma_id) as turma_dias_semana,
            qr_token,
            qr_expires_at,
@@ -757,7 +777,7 @@ export class AulasService {
             from tipos_treino where id = (select tipo_treino_id from turmas where id = turma_id)) as tipo_treino_cor,
            (select u.nome_completo from usuarios u join turmas t on t.instrutor_padrao_id = u.id where t.id = turma_id) as instrutor_nome,
            (select instrutor_padrao_id from turmas where id = turma_id) as instrutor_id,
-           (select to_char(horario_padrao, 'HH24:MI') from turmas where id = turma_id) as turma_horario_padrao,
+           (select to_char(hora_inicio, 'HH24:MI') from turmas where id = turma_id) as turma_hora_inicio,
            (select dias_semana from turmas where id = turma_id) as turma_dias_semana,
            qr_token,
            qr_expires_at,
@@ -1097,8 +1117,8 @@ export class AulasService {
     const roles = (user.roles ?? (user.role ? [user.role] : [])).map((r) =>
       (r as string).toUpperCase(),
     );
+    // INSTRUTOR não pode criar/editar aulas - apenas PROFESSOR+
     const allowed = [
-      UserRole.INSTRUTOR,
       UserRole.PROFESSOR,
       UserRole.ADMIN,
       UserRole.TI,
@@ -1106,9 +1126,31 @@ export class AulasService {
     return roles.some((r) => allowed.includes(r as UserRole));
   }
 
-  private ensureDateOrder(dataInicio: string, dataFim: string) {
-    if (new Date(dataFim) <= new Date(dataInicio)) {
+  private async ensureDateOrder(
+    dataInicio: string,
+    dataFim: string,
+    academiaId: string,
+  ) {
+    const inicio = new Date(dataInicio);
+    const fim = new Date(dataFim);
+    
+    if (fim <= inicio) {
       throw new BadRequestException('dataFim deve ser maior que dataInicio');
+    }
+    
+    // Buscar duração mínima configurada na academia (default 30 min)
+    const academia = await this.databaseService.queryOne<{ min_duracao_aula_minutos: number }>(
+      `SELECT COALESCE(min_duracao_aula_minutos, 30) as min_duracao_aula_minutos FROM academias WHERE id = $1`,
+      [academiaId],
+    );
+    
+    const minDuracao = academia?.min_duracao_aula_minutos ?? 30;
+    const duracaoMinutos = (fim.getTime() - inicio.getTime()) / (1000 * 60);
+    
+    if (duracaoMinutos < minDuracao) {
+      throw new BadRequestException(
+        `A aula deve ter no mínimo ${minDuracao} minutos`,
+      );
     }
   }
 
@@ -1266,7 +1308,7 @@ export class AulasService {
           ) as tipo_treino_cor,
           instrutor.nome_completo as instrutor_nome,
           t.instrutor_padrao_id as instrutor_id,
-          to_char(t.horario_padrao, 'HH24:MI') as turma_horario_padrao,
+          to_char(t.hora_inicio, 'HH24:MI') as turma_hora_inicio,
           t.dias_semana as turma_dias_semana,
           a.qr_token,
           a.qr_expires_at,
@@ -1295,14 +1337,14 @@ export class AulasService {
   }
 
   private mapRow(
-    row: AulaRow,
+    row: AulaRow & { presentes?: number; meu_checkin?: string | null },
     opts?: { includeQr?: boolean },
   ): AulaResponseDto {
     return {
       id: row.id,
       turmaId: row.turma_id,
       turmaNome: row.turma_nome,
-      turmaHorarioPadrao: row.turma_horario_padrao ?? null,
+      turmaHorarioPadrao: row.turma_hora_inicio ?? null,
       turmaDiasSemana: Array.isArray(row.turma_dias_semana)
         ? row.turma_dias_semana.map(Number)
         : null,
@@ -1319,6 +1361,10 @@ export class AulasService {
           ? new Date(row.qr_expires_at).toISOString()
           : null,
       deletedAt: row.deleted_at ? new Date(row.deleted_at).toISOString() : null,
+      presentes: row.presentes,
+      meuCheckin: row.meu_checkin ?? null,
     };
   }
+
+
 }

@@ -165,13 +165,14 @@ on conflict (academia_id, faixa_slug) do nothing;
 -- 8) TURMA ADULTO GI NOITE
 -- ============================
 
-insert into turmas (academia_id, tipo_treino_id, nome, dias_semana, horario_padrao, instrutor_padrao_id)
+insert into turmas (academia_id, tipo_treino_id, nome, dias_semana, hora_inicio, hora_fim, instrutor_padrao_id)
 select
   a.id as academia_id,
   tt.id as tipo_treino_id,
   'Adulto Gi Noite' as nome,
   array[1,3] as dias_semana,      -- Segunda (1) e Quarta (3)
-  time '19:00' as horario_padrao,
+  time '19:00' as hora_inicio,
+  time '20:30' as hora_fim,
   instrutor.id as instrutor_padrao_id
 from academias a
 join tipos_treino tt
@@ -187,13 +188,14 @@ where a.codigo_convite = 'DOJ-SEED1'
   );
 
 -- 8b) TURMA NO-GI MANHA
-insert into turmas (academia_id, tipo_treino_id, nome, dias_semana, horario_padrao, instrutor_padrao_id)
+insert into turmas (academia_id, tipo_treino_id, nome, dias_semana, hora_inicio, hora_fim, instrutor_padrao_id)
 select
   a.id as academia_id,
   tt.id as tipo_treino_id,
   'No-Gi Manha' as nome,
   array[2,4] as dias_semana,      -- Terca (2) e Quinta (4)
-  time '07:30' as horario_padrao,
+  time '07:30' as hora_inicio,
+  time '09:00' as hora_fim,
   professor.id as instrutor_padrao_id
 from academias a
 join tipos_treino tt
@@ -270,8 +272,8 @@ insert into aulas (academia_id, turma_id, data_inicio, data_fim, status)
 select
   a.id as academia_id,
   t.id as turma_id,
-  (g.dia + t.horario_padrao) at time zone 'America/Sao_Paulo' as data_inicio,
-  ((g.dia + t.horario_padrao) at time zone 'America/Sao_Paulo') + interval '90 minutes' as data_fim,
+  (g.dia + t.hora_inicio) at time zone 'America/Sao_Paulo' as data_inicio,
+  (g.dia + t.hora_fim) at time zone 'America/Sao_Paulo' as data_fim,
   'AGENDADA' as status
 from turmas t
 join academias a on a.id = t.academia_id

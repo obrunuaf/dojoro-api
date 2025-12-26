@@ -36,11 +36,17 @@ export class CreateTurmaDto {
   @IsIn(DAYS_RANGE, { each: true })
   diasSemana: number[];
 
-  @ApiProperty({ description: 'Horario padrao HH:MM' })
+  @ApiProperty({ description: 'Horário de início HH:MM', example: '18:00' })
   @Matches(/^\d{2}:\d{2}$/, {
-    message: 'horarioPadrao deve estar no formato HH:MM',
+    message: 'horaInicio deve estar no formato HH:MM',
   })
-  horarioPadrao: string;
+  horaInicio: string;
+
+  @ApiProperty({ description: 'Horário de término HH:MM', example: '19:00' })
+  @Matches(/^\d{2}:\d{2}$/, {
+    message: 'horaFim deve estar no formato HH:MM',
+  })
+  horaFim: string;
 
   @ApiPropertyOptional({ description: 'UUID do instrutor padrao' })
   @IsOptional()

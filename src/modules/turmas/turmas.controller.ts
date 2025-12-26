@@ -27,6 +27,7 @@ import { AcademiaStatusGuard } from '../../common/guards/academia-status.guard';
 import { CreateTurmaDto } from './dtos/create-turma.dto';
 import { ListTurmasQueryDto } from './dtos/list-turmas-query.dto';
 import { TurmaResponseDto } from './dtos/turma-response.dto';
+import { TurmaAlertaDto } from './dtos/turma-alerta.dto';
 import { UpdateTurmaDto } from './dtos/update-turma.dto';
 import {
   TurmasService,
@@ -69,6 +70,18 @@ export class TurmasController {
     return this.turmasService.listar(user, query);
   }
 
+  @Get('alertas')
+  @Roles(UserRole.PROFESSOR, UserRole.ADMIN, UserRole.TI)
+  @ApiOperation({ 
+    summary: 'Lista turmas com aulas expirando', 
+    description: 'Retorna turmas cuja última aula agendada ocorre nos próximos 7 dias.' 
+  })
+  async listarAlertas(
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.turmasService.listarAlertas(user);
+  }
+
   @Get(':id')
   @Roles(
     UserRole.ALUNO,
@@ -87,7 +100,7 @@ export class TurmasController {
   }
 
   @Post()
-  @Roles(UserRole.INSTRUTOR, UserRole.PROFESSOR, UserRole.ADMIN, UserRole.TI)
+  @Roles(UserRole.PROFESSOR, UserRole.ADMIN, UserRole.TI)
   @ApiOperation({ summary: 'Cria nova turma' })
   @ApiCreatedResponse({ type: TurmaResponseDto })
   async criar(
@@ -98,7 +111,7 @@ export class TurmasController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.INSTRUTOR, UserRole.PROFESSOR, UserRole.ADMIN, UserRole.TI)
+  @Roles(UserRole.PROFESSOR, UserRole.ADMIN, UserRole.TI)
   @ApiOperation({ summary: 'Atualiza turma' })
   @ApiOkResponse({ type: TurmaResponseDto })
   async atualizar(
@@ -110,7 +123,7 @@ export class TurmasController {
   }
 
   @Delete(':id')
-  @Roles(UserRole.INSTRUTOR, UserRole.PROFESSOR, UserRole.ADMIN, UserRole.TI)
+  @Roles(UserRole.PROFESSOR, UserRole.ADMIN, UserRole.TI)
   @ApiOperation({ summary: 'Soft-delete de turma' })
   @ApiOkResponse({ schema: { example: { success: true } } })
   async remover(
@@ -122,7 +135,7 @@ export class TurmasController {
   }
 
   @Post(':id/restore')
-  @Roles(UserRole.INSTRUTOR, UserRole.PROFESSOR, UserRole.ADMIN, UserRole.TI)
+  @Roles(UserRole.PROFESSOR, UserRole.ADMIN, UserRole.TI)
   @ApiOperation({
     summary: 'Restaura turma soft-deletada',
     description:
@@ -135,4 +148,18 @@ export class TurmasController {
   ): Promise<TurmaResponseDto> {
     return this.turmasService.restaurar(id, user);
   }
+
+  @Post(':id/renovar')
+  @Roles(UserRole.PROFESSOR, UserRole.ADMIN, UserRole.TI)
+  @ApiOperation({ 
+    summary: 'Renova turma por mais 12 semanas',
+    description: 'Gera aulas para as próximas 12 semanas a partir da última aula existente.'
+  })
+  async renovar(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ): Promise<{ aulasGeradas: number }> {
+    return this.turmasService.renovar(id, user);
+  }
 }
+

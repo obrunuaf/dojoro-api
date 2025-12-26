@@ -160,10 +160,12 @@ create table if not exists turmas (
   tipo_treino_id      uuid not null references tipos_treino (id),
   nome                varchar(100) not null,
   dias_semana         integer[] not null,      -- 0-6 (Dom-Sáb)
-  horario_padrao      time not null,
+  hora_inicio         time not null,
+  hora_fim            time not null,
   instrutor_padrao_id uuid references usuarios (id),
   deleted_at          timestamptz,
-  criado_em           timestamptz not null default now()
+  criado_em           timestamptz not null default now(),
+  CONSTRAINT turmas_hora_fim_after_inicio CHECK (hora_fim > hora_inicio)
 );
 
 create table if not exists aulas (

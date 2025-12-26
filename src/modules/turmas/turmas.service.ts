@@ -4,11 +4,15 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
+import { AulasService } from '../aulas/aulas.service';
 import { CreateTurmaDto } from './dtos/create-turma.dto';
 import { ListTurmasQueryDto } from './dtos/list-turmas-query.dto';
 import { TurmaResponseDto } from './dtos/turma-response.dto';
+import { TurmaAlertaDto } from './dtos/turma-alerta.dto';
 import { UpdateTurmaDto } from './dtos/update-turma.dto';
 
 export type CurrentUser = {
@@ -22,7 +26,8 @@ type TurmaRow = {
   id: string;
   nome: string;
   dias_semana: number[];
-  horario_padrao: string;
+  hora_inicio: string;
+  hora_fim: string;
   tipo_treino: string;
   tipo_treino_cor: string | null;
   instrutor_id: string | null;
@@ -39,7 +44,11 @@ type TipoTreinoRow = {
 
 @Injectable()
 export class TurmasService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    @Inject(forwardRef(() => AulasService))
+    private readonly aulasService: AulasService,
+  ) {}
 
   async listar(
     currentUser: CurrentUser,
@@ -58,7 +67,8 @@ export class TurmasService {
           t.id,
           t.nome,
           t.dias_semana,
-          to_char(t.horario_padrao, 'HH24:MI') as horario_padrao,
+          to_char(t.hora_inicio, 'HH24:MI') as hora_inicio,
+          to_char(t.hora_fim, 'HH24:MI') as hora_fim,
           tt.nome as tipo_treino,
           COALESCE(tt.cor_identificacao,
             CASE
@@ -83,19 +93,7 @@ export class TurmasService {
       [currentUser.academiaId],
     );
 
-    return turmas.map((turma) => ({
-      id: turma.id,
-      nome: turma.nome,
-      tipoTreino: turma.tipo_treino,
-      diasSemana: Array.isArray(turma.dias_semana)
-        ? turma.dias_semana.map(Number)
-        : [],
-      horarioPadrao: turma.horario_padrao,
-      instrutorPadraoId: turma.instrutor_id ?? null,
-      instrutorPadraoNome: turma.instrutor_nome ?? null,
-      tipoTreinoCor: turma.tipo_treino_cor ?? null,
-      deletedAt: turma.deleted_at ? new Date(turma.deleted_at).toISOString() : null,
-    }));
+    return turmas.map((turma) => this.mapRow(turma));
   }
 
   async detalhar(id: string, currentUser: CurrentUser): Promise<TurmaResponseDto> {
@@ -124,21 +122,32 @@ export class TurmasService {
     );
     await this.validarInstrutor(dto.instrutorPadraoId, currentUser.academiaId);
 
+    // Calcular duração em minutos
+    const [horaInicioH, horaInicioM] = dto.horaInicio.split(':').map(Number);
+    const [horaFimH, horaFimM] = dto.horaFim.split(':').map(Number);
+    const duracaoMinutos = (horaFimH * 60 + horaFimM) - (horaInicioH * 60 + horaInicioM);
+
+    if (duracaoMinutos <= 0) {
+      throw new BadRequestException('horaFim deve ser maior que horaInicio');
+    }
+
     const turma = await this.databaseService.queryOne<TurmaRow & { academia_id: string }>(
       `
         insert into turmas (
           nome,
           tipo_treino_id,
           dias_semana,
-          horario_padrao,
+          hora_inicio,
+          hora_fim,
           instrutor_padrao_id,
           academia_id
-        ) values ($1, $2, $3, $4, $5, $6)
+        ) values ($1, $2, $3, $4, $5, $6, $7)
         returning
           id,
           nome,
           dias_semana,
-          to_char(horario_padrao, 'HH24:MI') as horario_padrao,
+          to_char(hora_inicio, 'HH24:MI') as hora_inicio,
+          to_char(hora_fim, 'HH24:MI') as hora_fim,
           tipo_treino_id,
           instrutor_padrao_id,
           academia_id,
@@ -149,7 +158,8 @@ export class TurmasService {
         dto.nome,
         tipoTreino.id,
         dto.diasSemana,
-        dto.horarioPadrao,
+        dto.horaInicio,
+        dto.horaFim,
         dto.instrutorPadraoId ?? null,
         currentUser.academiaId,
       ],
@@ -164,6 +174,28 @@ export class TurmasService {
       currentUser.academiaId,
     );
 
+    // Auto-gerar aulas para as próximas 12 semanas
+    try {
+      const today = new Date();
+      const in12Weeks = new Date();
+      in12Weeks.setDate(in12Weeks.getDate() + 84); // 12 weeks = 84 days
+
+      await this.aulasService.criarEmLote(
+        {
+          turmaId: turma.id,
+          fromDate: today.toISOString().split('T')[0],
+          toDate: in12Weeks.toISOString().split('T')[0],
+          diasSemana: dto.diasSemana,
+          horaInicio: dto.horaInicio,
+          duracaoMinutos: duracaoMinutos,
+        },
+        currentUser as any,
+      );
+    } catch (err) {
+      // Log mas não falha a criação da turma
+      console.error('Erro ao auto-gerar aulas:', err);
+    }
+
     return {
       id: turma.id,
       nome: turma.nome,
@@ -174,7 +206,9 @@ export class TurmasService {
         tipoTreino.nome.toLowerCase().includes('gi') ? '#3B82F6' : '#6B7280'
       ),
       diasSemana: dto.diasSemana.map(Number),
-      horarioPadrao: dto.horarioPadrao,
+      horaInicio: dto.horaInicio,
+      horaFim: dto.horaFim,
+      duracaoMinutos: duracaoMinutos,
       instrutorPadraoId: dto.instrutorPadraoId ?? null,
       instrutorPadraoNome: instrutorNome,
       deletedAt: null,
@@ -215,8 +249,10 @@ export class TurmasService {
     if (dto.tipoTreinoId !== undefined)
       pushUpdate('tipo_treino_id', resolvedTipoTreino!.id);
     if (dto.diasSemana !== undefined) pushUpdate('dias_semana', dto.diasSemana);
-    if (dto.horarioPadrao !== undefined)
-      pushUpdate('horario_padrao', dto.horarioPadrao);
+    if (dto.horaInicio !== undefined)
+      pushUpdate('hora_inicio', dto.horaInicio);
+    if (dto.horaFim !== undefined)
+      pushUpdate('hora_fim', dto.horaFim);
     if (dto.instrutorPadraoId !== undefined)
       pushUpdate('instrutor_padrao_id', dto.instrutorPadraoId ?? null);
 
@@ -236,7 +272,8 @@ export class TurmasService {
            id,
            nome,
            dias_semana,
-           to_char(horario_padrao, 'HH24:MI') as horario_padrao,
+           to_char(hora_inicio, 'HH24:MI') as hora_inicio,
+           to_char(hora_fim, 'HH24:MI') as hora_fim,
            instrutor_padrao_id as instrutor_id,
            (select nome from tipos_treino where id = turmas.tipo_treino_id) as tipo_treino,
            (select 
@@ -260,6 +297,40 @@ export class TurmasService {
       throw new NotFoundException('Turma nao encontrada');
     }
 
+    // Se solicitado, atualizar aulas futuras com os novos horários
+    if (dto.atualizarAulasFuturas && (dto.horaInicio || dto.horaFim || dto.instrutorPadraoId !== undefined)) {
+      const novaHoraInicio = dto.horaInicio || turma.hora_inicio;
+      const novaHoraFim = dto.horaFim || turma.hora_fim;
+
+      // Calcular duração em minutos
+      const [hI, mI] = novaHoraInicio.split(':').map(Number);
+      const [hF, mF] = novaHoraFim.split(':').map(Number);
+      const duracaoMinutos = (hF * 60 + mF) - (hI * 60 + mI);
+
+      // Atualizar aulas futuras agendadas
+      const tz = this.databaseService.getAppTimezone();
+      const aulasAtualizadas = await this.databaseService.query<{ id: string }>(
+        `
+          UPDATE aulas
+          SET 
+            data_inicio = date_trunc('day', data_inicio AT TIME ZONE $5) + $3::time,
+            data_fim = date_trunc('day', data_inicio AT TIME ZONE $5) + $4::time
+            ${dto.instrutorPadraoId !== undefined ? `, instrutor_id = $6` : ''}
+          WHERE turma_id = $1
+            AND academia_id = $2
+            AND deleted_at IS NULL
+            AND status = 'AGENDADA'
+            AND data_inicio > NOW()
+          RETURNING id;
+        `,
+        dto.instrutorPadraoId !== undefined 
+          ? [id, currentUser.academiaId, novaHoraInicio, novaHoraFim, tz, dto.instrutorPadraoId]
+          : [id, currentUser.academiaId, novaHoraInicio, novaHoraFim, tz],
+      );
+
+      console.log(`Turma ${id}: ${aulasAtualizadas.length} aulas futuras atualizadas`);
+    }
+
     return this.mapRow({
       ...updated,
       tipo_treino: updated.tipo_treino,
@@ -276,23 +347,23 @@ export class TurmasService {
       throw new NotFoundException('Turma nao encontrada');
     }
 
-    const aulaFutura = await this.databaseService.queryOne<{ id: string }>(
+    // Cancelar automaticamente todas as aulas futuras desta turma
+    const canceladas = await this.databaseService.query<{ id: string }>(
       `
-        select id
-        from aulas
-        where turma_id = $1
-          and academia_id = $2
-          and deleted_at is null
-          and data_inicio >= now()
-        limit 1;
+        update aulas
+           set status = 'CANCELADA'
+         where turma_id = $1
+           and academia_id = $2
+           and deleted_at is null
+           and data_inicio >= now()
+           and status = 'AGENDADA'
+        returning id;
       `,
       [id, currentUser.academiaId],
     );
 
-    if (aulaFutura) {
-      throw new ConflictException(
-        'Turma possui aulas futuras. Cancele ou delete as aulas antes de remover a turma.',
-      );
+    if (canceladas.length > 0) {
+      console.log(`Turma ${id} arquivada: ${canceladas.length} aulas futuras canceladas`);
     }
 
     await this.databaseService.query(
@@ -368,6 +439,11 @@ export class TurmasService {
   }
 
   private mapRow(row: TurmaRow & { academia_id?: string }): TurmaResponseDto {
+    // Calcular duração em minutos
+    const [horaInicioH, horaInicioM] = (row.hora_inicio || '00:00').split(':').map(Number);
+    const [horaFimH, horaFimM] = (row.hora_fim || '00:00').split(':').map(Number);
+    const duracaoMinutos = (horaFimH * 60 + horaFimM) - (horaInicioH * 60 + horaInicioM);
+
     return {
       id: row.id,
       nome: row.nome,
@@ -376,7 +452,9 @@ export class TurmasService {
       diasSemana: Array.isArray(row.dias_semana)
         ? row.dias_semana.map(Number)
         : [],
-      horarioPadrao: row.horario_padrao,
+      horaInicio: row.hora_inicio,
+      horaFim: row.hora_fim,
+      duracaoMinutos: duracaoMinutos > 0 ? duracaoMinutos : 60,
       instrutorPadraoId: row.instrutor_id ?? null,
       instrutorPadraoNome: row.instrutor_nome ?? null,
       deletedAt: row.deleted_at ? new Date(row.deleted_at).toISOString() : null,
@@ -396,7 +474,8 @@ export class TurmasService {
           t.id,
           t.nome,
           t.dias_semana,
-          to_char(t.horario_padrao, 'HH24:MI') as horario_padrao,
+          to_char(t.hora_inicio, 'HH24:MI') as hora_inicio,
+          to_char(t.hora_fim, 'HH24:MI') as hora_fim,
           tt.nome as tipo_treino,
           COALESCE(tt.cor_identificacao, 
             CASE 
@@ -513,16 +592,124 @@ export class TurmasService {
   }
 
   private ensureStaff(user: CurrentUser) {
-    const roles = (user.roles ?? [user.role]).map((r) => r.toUpperCase());
-    const allowed = ['INSTRUTOR', 'PROFESSOR', 'ADMIN', 'TI'];
-    if (!roles.some((r) => allowed.includes(r))) {
+    if (!this.userIsStaff(user)) {
       throw new ForbiddenException('Apenas staff pode executar esta acao');
     }
   }
 
   private userIsStaff(user: CurrentUser): boolean {
     const roles = (user.roles ?? [user.role]).map((r) => r.toUpperCase());
-    const allowed = ['INSTRUTOR', 'PROFESSOR', 'ADMIN', 'TI'];
+    // INSTRUTOR não pode criar/editar turmas - apenas PROFESSOR+
+    const allowed = ['PROFESSOR', 'ADMIN', 'TI'];
     return roles.some((r) => allowed.includes(r));
+  }
+
+  /**
+   * Lista turmas com última aula nos próximos 7 dias (turmas prestes a "expirar")
+   */
+  async listarAlertas(currentUser: CurrentUser): Promise<TurmaAlertaDto[]> {
+    this.ensureStaff(currentUser);
+
+    const rows = await this.databaseService.query<{
+      id: string;
+      nome: string;
+      tipo_treino: string;
+      tipo_treino_cor: string | null;
+      ultima_aula: string;
+      dias_restantes: number;
+      total_aulas_futuras: number;
+    }>(
+      `
+      SELECT 
+        t.id,
+        t.nome,
+        tt.nome as tipo_treino,
+        tt.cor_identificacao as tipo_treino_cor,
+        MAX(a.data_inicio)::text as ultima_aula,
+        EXTRACT(DAY FROM MAX(a.data_inicio) - NOW())::integer as dias_restantes,
+        COUNT(a.id)::integer as total_aulas_futuras
+      FROM turmas t
+      JOIN tipos_treino tt ON tt.id = t.tipo_treino_id
+      LEFT JOIN aulas a ON a.turma_id = t.id 
+        AND a.deleted_at IS NULL 
+        AND a.status = 'AGENDADA'
+        AND a.data_inicio > NOW()
+      WHERE t.academia_id = $1
+        AND t.deleted_at IS NULL
+      GROUP BY t.id, t.nome, tt.nome, tt.cor_identificacao
+      HAVING MAX(a.data_inicio) IS NOT NULL 
+        AND EXTRACT(DAY FROM MAX(a.data_inicio) - NOW()) <= 7
+      ORDER BY dias_restantes ASC;
+      `,
+      [currentUser.academiaId],
+    );
+
+    return rows.map((row) => ({
+      id: row.id,
+      nome: row.nome,
+      tipoTreino: row.tipo_treino,
+      tipoTreinoCor: row.tipo_treino_cor,
+      ultimaAula: row.ultima_aula,
+      diasRestantes: row.dias_restantes,
+      totalAulasFuturas: row.total_aulas_futuras,
+    }));
+  }
+
+  /**
+   * Gera próximas 12 semanas de aulas para uma turma (renovação trimestral)
+   */
+  async renovar(
+    id: string,
+    currentUser: CurrentUser,
+  ): Promise<{ aulasGeradas: number }> {
+    this.ensureStaff(currentUser);
+
+    const turma = await this.buscarTurma(id, currentUser.academiaId);
+    if (!turma) {
+      throw new NotFoundException('Turma nao encontrada');
+    }
+
+    // Buscar última aula agendada da turma
+    const ultimaAula = await this.databaseService.queryOne<{ data_inicio: string }>(
+      `
+      SELECT data_inicio 
+      FROM aulas 
+      WHERE turma_id = $1 
+        AND academia_id = $2 
+        AND deleted_at IS NULL 
+        AND status = 'AGENDADA'
+      ORDER BY data_inicio DESC 
+      LIMIT 1;
+      `,
+      [id, currentUser.academiaId],
+    );
+
+    // Calcular data de início (dia seguinte à última aula ou hoje)
+    const fromDate = ultimaAula
+      ? new Date(new Date(ultimaAula.data_inicio).getTime() + 86400000) // +1 dia
+      : new Date();
+    
+    const toDate = new Date(fromDate);
+    toDate.setDate(toDate.getDate() + 84); // 12 semanas = 84 dias
+
+    // Calcular duração a partir de hora_inicio e hora_fim da turma
+    const [horaInicioH, horaInicioM] = (turma.hora_inicio || '00:00').split(':').map(Number);
+    const [horaFimH, horaFimM] = (turma.hora_fim || '00:00').split(':').map(Number);
+    const duracaoMinutos = (horaFimH * 60 + horaFimM) - (horaInicioH * 60 + horaInicioM);
+
+    // Gerar aulas usando criarEmLote
+    const result = await this.aulasService.criarEmLote(
+      {
+        turmaId: id,
+        fromDate: fromDate.toISOString().split('T')[0],
+        toDate: toDate.toISOString().split('T')[0],
+        diasSemana: turma.dias_semana,
+        horaInicio: turma.hora_inicio,
+        duracaoMinutos: duracaoMinutos > 0 ? duracaoMinutos : 60,
+      },
+      currentUser as any,
+    );
+
+    return { aulasGeradas: result.criadas };
   }
 }

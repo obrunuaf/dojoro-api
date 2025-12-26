@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { DatabaseModule } from '../../database/database.module';
 import { AulasController } from './aulas.controller';
 import { AulasService } from './aulas.service';
@@ -10,3 +10,4 @@ import { AulasService } from './aulas.service';
   exports: [AulasService],
 })
 export class AulasModule {}
+

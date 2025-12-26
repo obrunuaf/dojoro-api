@@ -10,7 +10,7 @@ Esquema usado pela API v1. Scripts: `sql/001-init-schema.sql` (DDL), `sql/003-se
 - **convites**: `academia_id` FK, `email`, `token_hash` unique, `papel_sugerido`, `expires_at`, `used_at`.
 - **regras_graduacao**: `academia_id` FK, `faixa_slug` FK, `aulas_minimas`, `tempo_minimo_meses`, `meta_aulas_no_grau`, unique `(academia_id, faixa_slug)`.
 - **tipos_treino**: `academia_id` FK, `nome`, `cor_identificacao`, unique `(academia_id, nome)`.
-- **turmas**: `academia_id` FK, `tipo_treino_id` FK, `nome`, `dias_semana` integer[], `horario_padrao`, `instrutor_padrao_id`.
+- **turmas**: `academia_id` FK, `tipo_treino_id` FK, `nome`, `dias_semana` integer[], `hora_inicio`, `hora_fim`, `instrutor_padrao_id`.
 - **aulas**: `academia_id` FK, `turma_id` FK, `data_inicio`, `data_fim`, `status`, `qr_token`, `qr_expires_at`, `criado_em`.
 - **matriculas**: `usuario_id` FK, `academia_id` FK, `numero_matricula`, `status`, `data_inicio`, `data_fim`, unique `(academia_id, numero_matricula)`.
 - **presencas**: `academia_id` FK, `aula_id` FK, `aluno_id` FK, `status`, `origem`, `registrado_por`, `criado_em`, unique `(aula_id, aluno_id)`.

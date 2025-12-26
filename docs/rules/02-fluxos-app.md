@@ -175,7 +175,8 @@ POST /v1/turmas
   "nome": "Gi Adulto Noite",
   "tipoTreinoId": "gi",
   "diasSemana": [1, 3, 5],  # Seg, Qua, Sex
-  "horarioPadrao": "19:30",
+  "horaInicio": "19:30",
+  "horaFim": "21:00",
   "instrutorPadraoId": null
 }
 ```
@@ -191,7 +192,7 @@ POST /v1/aulas/lote
 }
 ```
 
-Usa `diasSemana` e `horarioPadrao` da turma.
+Usa `diasSemana`, `horaInicio` e `horaFim` da turma.
 
 #### 5.3 Gerar QR Code
 

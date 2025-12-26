@@ -2,6 +2,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsIn,
   IsNotEmpty,
   IsOptional,
@@ -37,15 +38,30 @@ export class UpdateTurmaDto {
   @IsIn(DAYS_RANGE, { each: true })
   diasSemana?: number[];
 
-  @ApiPropertyOptional({ description: 'Horario padrao HH:MM' })
+  @ApiPropertyOptional({ description: 'Horário de início HH:MM', example: '18:00' })
   @IsOptional()
   @Matches(/^\d{2}:\d{2}$/, {
-    message: 'horarioPadrao deve estar no formato HH:MM',
+    message: 'horaInicio deve estar no formato HH:MM',
   })
-  horarioPadrao?: string;
+  horaInicio?: string;
+
+  @ApiPropertyOptional({ description: 'Horário de término HH:MM', example: '19:00' })
+  @IsOptional()
+  @Matches(/^\d{2}:\d{2}$/, {
+    message: 'horaFim deve estar no formato HH:MM',
+  })
+  horaFim?: string;
 
   @ApiPropertyOptional({ description: 'UUID do instrutor padrao' })
   @IsOptional()
   @IsUUID()
   instrutorPadraoId?: string | null;
+
+  @ApiPropertyOptional({ 
+    description: 'Se true, aplica alterações de horário às aulas agendadas futuras',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  atualizarAulasFuturas?: boolean;
 }

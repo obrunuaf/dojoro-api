@@ -45,4 +45,10 @@ export class AulaResponseDto {
 
   @ApiProperty({ nullable: true })
   deletedAt: string | null;
+
+  @ApiProperty({ description: 'Número de alunos presentes', required: false })
+  presentes?: number;
+
+  @ApiProperty({ description: 'Status do check-in do usuário atual', required: false, nullable: true })
+  meuCheckin?: string | null;
 }
