@@ -75,9 +75,11 @@ sequenceDiagram
 | 400    | Email já cadastrado     | Sugerir login ou recuperação |
 | 404    | Academia não encontrada | Verificar código             |
 
-### ⚠️ Gap Atual
+### ✅ Implementado
 
-A aprovação de matrícula (`PATCH /staff/matriculas/:id`) está **implementada**, mas o app precisa de um mecanismo para saber quando foi aprovado (polling ou push notification futura).
+- Login de usuários PENDENTE agora funciona
+- App mostra card explicativo em: Home, Check-in, Evolução, Histórico
+- Decisão: PENDENTE **NÃO pode** fazer check-in (bloqueado na API)
 
 ---
 
