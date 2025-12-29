@@ -311,6 +311,88 @@ export class AlunosService {
     };
   }
 
+  /**
+   * Atualiza os papéis de um usuário na academia.
+   * Somente PROFESSOR, ADMIN ou TI podem alterar papéis.
+   */
+  async atualizarPapeis(
+    alunoId: string,
+    papeis: string[],
+    currentUser: CurrentUser,
+  ): Promise<{ success: boolean; papeis: string[] }> {
+    // Validar que o usuário tem permissão (PROFESSOR+)
+    const allowedRoles = [UserRole.PROFESSOR, UserRole.ADMIN, UserRole.TI];
+    const hasPermission = currentUser.roles.some((r) =>
+      allowedRoles.includes(r),
+    );
+    if (!hasPermission) {
+      throw new ForbiddenException('Apenas PROFESSOR, ADMIN ou TI podem alterar papéis');
+    }
+
+    // Validar que o aluno existe na academia
+    const aluno = await this.findAlunoBase(alunoId, currentUser.academiaId);
+    if (!aluno) {
+      await this.throwForbiddenOrNotFound(alunoId, currentUser.academiaId);
+    }
+
+    // Validar papéis permitidos
+    const validRoles = ['ALUNO', 'INSTRUTOR', 'PROFESSOR', 'ADMIN', 'TI'];
+    const normalizedPapeis = papeis.map((p) => p.toUpperCase());
+    for (const papel of normalizedPapeis) {
+      if (!validRoles.includes(papel)) {
+        throw new ForbiddenException(`Papel inválido: ${papel}`);
+      }
+    }
+
+    // Impedir auto-promoção: não pode dar a si mesmo um papel maior
+    if (alunoId === currentUser.id) {
+      const roleHierarchy = { ALUNO: 1, INSTRUTOR: 2, PROFESSOR: 3, ADMIN: 4, TI: 5 };
+      const currentMaxLevel = Math.max(
+        ...currentUser.roles.map((r) => roleHierarchy[r] ?? 0),
+      );
+      for (const papel of normalizedPapeis) {
+        if ((roleHierarchy[papel] ?? 0) > currentMaxLevel) {
+          throw new ForbiddenException('Não é possível se auto-promover');
+        }
+      }
+    }
+
+    // Remover papéis antigos
+    await this.databaseService.query(
+      `DELETE FROM usuarios_papeis WHERE usuario_id = $1 AND academia_id = $2`,
+      [alunoId, currentUser.academiaId],
+    );
+
+    // Inserir novos papéis
+    for (const papel of normalizedPapeis) {
+      await this.databaseService.query(
+        `INSERT INTO usuarios_papeis (usuario_id, academia_id, papel, criado_em)
+         VALUES ($1, $2, $3, NOW())
+         ON CONFLICT (usuario_id, academia_id, papel) DO NOTHING`,
+        [alunoId, currentUser.academiaId, papel],
+      );
+    }
+
+    return { success: true, papeis: normalizedPapeis };
+  }
+
+  /**
+   * Busca os papéis atuais de um usuário na academia.
+   */
+  async buscarPapeis(
+    alunoId: string,
+    currentUser: CurrentUser,
+  ): Promise<string[]> {
+    this.ensureAlunoScope(currentUser, alunoId);
+
+    const rows = await this.databaseService.query<{ papel: string }>(
+      `SELECT papel FROM usuarios_papeis WHERE usuario_id = $1 AND academia_id = $2`,
+      [alunoId, currentUser.academiaId],
+    );
+
+    return rows.map((r) => r.papel);
+  }
+
   private ensureAlunoScope(currentUser: CurrentUser, alunoId: string) {
     if (currentUser.role === UserRole.ALUNO && currentUser.id !== alunoId) {
       throw new ForbiddenException('Aluno so pode acessar o proprio id');

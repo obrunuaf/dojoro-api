@@ -77,6 +77,113 @@ export class PresencasService {
 
   private presencaAuditColumnsPromise?: Promise<PresencaAuditColumns>;
 
+  /**
+   * Retorna estatísticas de presença do usuário logado
+   */
+  async getStats(currentUser: CurrentUser): Promise<{
+    treinosMes: number;
+    sequencia: number;
+    presencasTotais: number;
+    ultimoTreino: string | null;
+    mediaSemanal: number;
+  }> {
+    const tz = this.databaseService.getAppTimezone();
+    
+    // Query para calcular todas as métricas de uma vez
+    const stats = await this.databaseService.queryOne<{
+      treinos_mes: string;
+      presencas_totais: string;
+      ultimo_treino: string | null;
+      media_semanal: string;
+    }>(`
+      WITH presencas_aluno AS (
+        SELECT DISTINCT a.data_inicio::date as data_aula
+        FROM presencas p
+        JOIN aulas a ON a.id = p.aula_id
+        WHERE p.aluno_id = $1
+          AND p.academia_id = $2
+          AND p.status = 'PRESENTE'
+      ),
+      mes_atual AS (
+        SELECT COUNT(*) as total
+        FROM presencas_aluno
+        WHERE data_aula >= date_trunc('month', CURRENT_DATE AT TIME ZONE $3)
+          AND data_aula < date_trunc('month', CURRENT_DATE AT TIME ZONE $3) + interval '1 month'
+      ),
+      total_geral AS (
+        SELECT COUNT(*) as total
+        FROM presencas_aluno
+      ),
+      ultimo AS (
+        SELECT MAX(data_aula) as data
+        FROM presencas_aluno
+      ),
+      semanas AS (
+        SELECT 
+          GREATEST(1, EXTRACT(WEEK FROM CURRENT_DATE) - EXTRACT(WEEK FROM MIN(data_aula)) + 1) as num_semanas,
+          COUNT(*) as total_presencas
+        FROM presencas_aluno
+        WHERE data_aula >= CURRENT_DATE - interval '12 weeks'
+      )
+      SELECT 
+        COALESCE((SELECT total FROM mes_atual), 0) as treinos_mes,
+        COALESCE((SELECT total FROM total_geral), 0) as presencas_totais,
+        (SELECT data FROM ultimo) as ultimo_treino,
+        COALESCE(
+          ROUND((SELECT total_presencas FROM semanas)::numeric / NULLIF((SELECT num_semanas FROM semanas), 0), 1),
+          0
+        ) as media_semanal
+    `, [currentUser.id, currentUser.academiaId, tz]);
+
+    // Calcular sequência de dias consecutivos
+    const sequenciaRows = await this.databaseService.query<{ data_aula: string }>(`
+      SELECT DISTINCT a.data_inicio::date as data_aula
+      FROM presencas p
+      JOIN aulas a ON a.id = p.aula_id
+      WHERE p.aluno_id = $1
+        AND p.academia_id = $2
+        AND p.status = 'PRESENTE'
+      ORDER BY data_aula DESC
+      LIMIT 90
+    `, [currentUser.id, currentUser.academiaId]);
+
+    let sequencia = 0;
+    if (sequenciaRows.length > 0) {
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+      
+      // Primeira data deve ser hoje ou ontem para contar sequência
+      const primeiraData = new Date(sequenciaRows[0].data_aula);
+      primeiraData.setHours(0, 0, 0, 0);
+      
+      const diffDias = Math.floor((hoje.getTime() - primeiraData.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (diffDias <= 1) {
+        // Conta sequência
+        sequencia = 1;
+        for (let i = 1; i < sequenciaRows.length; i++) {
+          const dataAnterior = new Date(sequenciaRows[i - 1].data_aula);
+          const dataAtual = new Date(sequenciaRows[i].data_aula);
+          const diff = Math.floor((dataAnterior.getTime() - dataAtual.getTime()) / (1000 * 60 * 60 * 24));
+          
+          if (diff === 1) {
+            sequencia++;
+          } else {
+            break;
+          }
+        }
+      }
+    }
+
+    return {
+      treinosMes: parseInt(stats?.treinos_mes ?? '0'),
+      sequencia,
+      presencasTotais: parseInt(stats?.presencas_totais ?? '0'),
+      ultimoTreino: stats?.ultimo_treino ?? null,
+      mediaSemanal: parseFloat(stats?.media_semanal ?? '0'),
+    };
+  }
+
   async listarPendencias(
     currentUser: CurrentUser,
     filtros?: { date?: string; from?: string; to?: string },

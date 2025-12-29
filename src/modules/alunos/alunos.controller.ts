@@ -23,6 +23,7 @@ import { AlunoDetalheDto } from './dtos/aluno-detalhe.dto';
 import { AlunoDto } from './dtos/aluno.dto';
 import { EvolucaoAlunoDto } from './dtos/evolucao-aluno.dto';
 import { CompletarPerfilDto } from './dtos/completar-perfil.dto';
+import { UpdatePapeisDto } from './dtos/update-papeis.dto';
 
 @ApiTags('Alunos')
 @ApiAuth()
@@ -95,5 +96,28 @@ export class AlunosController {
     @CurrentUser() user: CurrentUserPayload,
   ): Promise<EvolucaoAlunoDto> {
     return this.alunosService.evolucao(id, user);
+  }
+
+  @Get(':id/papeis')
+  @UseGuards(AcademiaStatusGuard)
+  @Roles(UserRole.INSTRUTOR, UserRole.PROFESSOR, UserRole.ADMIN, UserRole.TI)
+  @ApiOperation({ summary: 'Busca os papéis do aluno na academia' })
+  async buscarPapeis(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ): Promise<string[]> {
+    return this.alunosService.buscarPapeis(id, user);
+  }
+
+  @Patch(':id/papeis')
+  @UseGuards(AcademiaStatusGuard)
+  @Roles(UserRole.PROFESSOR, UserRole.ADMIN, UserRole.TI)
+  @ApiOperation({ summary: 'Atualiza os papéis do aluno na academia' })
+  async atualizarPapeis(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() dto: UpdatePapeisDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ): Promise<{ success: boolean; papeis: string[] }> {
+    return this.alunosService.atualizarPapeis(id, dto.papeis, user);
   }
 }

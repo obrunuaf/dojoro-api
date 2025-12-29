@@ -31,8 +31,35 @@ import { PendenciasQueryDto } from './dtos/pendencias-query.dto';
 export class PresencasController {
   constructor(private readonly presencasService: PresencasService) {}
 
+  @Get('stats')
+  @Roles(UserRole.ALUNO, UserRole.INSTRUTOR, UserRole.PROFESSOR, UserRole.ADMIN, UserRole.TI)
+  @ApiOperation({ summary: 'Retorna estatísticas de presença do usuário logado' })
+  @ApiOkResponse({
+    schema: {
+      example: {
+        treinosMes: 12,
+        sequencia: 5,
+        presencasTotais: 45,
+        ultimoTreino: '2024-12-28',
+        mediaSemanal: 3.2,
+      },
+    },
+  })
+  async getStats(
+    @CurrentUserDecorator() user: CurrentUser,
+  ): Promise<{
+    treinosMes: number;
+    sequencia: number;
+    presencasTotais: number;
+    ultimoTreino: string | null;
+    mediaSemanal: number;
+  }> {
+    return this.presencasService.getStats(user);
+  }
+
   @Get('pendencias')
   @Roles(UserRole.INSTRUTOR, UserRole.PROFESSOR, UserRole.ADMIN, UserRole.TI)
+
   @ApiOperation({ summary: 'Lista pendencias de presenca (hoje por default)' })
   @ApiOkResponse({
     schema: {
