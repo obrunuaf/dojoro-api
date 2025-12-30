@@ -34,6 +34,8 @@ type AlunoBaseRow = {
   sexo: string | null;
   faixa_declarada: string | null;
   status_matricula: string | null;
+  foto_url: string | null;
+  foto_capa_url: string | null;
 };
 
 type GraduacaoRow = {
@@ -183,7 +185,7 @@ export class AlunosService {
     alunoId: string,
     currentUser: CurrentUser,
   ): Promise<AlunoDetalheDto> {
-    this.ensureAlunoScope(currentUser, alunoId);
+    await this.ensureAlunoScope(currentUser, alunoId);
 
     const aluno = await this.findAlunoBase(alunoId, currentUser.academiaId);
     if (!aluno) {
@@ -221,6 +223,8 @@ export class AlunosService {
       dataNascimento: alunoBase.data_nascimento,
       sexo: alunoBase.sexo,
       presencasTotais: presencas?.total ?? 0,
+      fotoUrl: alunoBase.foto_url,
+      fotoCapaUrl: alunoBase.foto_capa_url,
     };
   }
 
@@ -228,7 +232,7 @@ export class AlunosService {
     alunoId: string,
     currentUser: CurrentUser,
   ): Promise<EvolucaoAlunoDto> {
-    this.ensureAlunoScope(currentUser, alunoId);
+    await this.ensureAlunoScope(currentUser, alunoId);
 
     const aluno = await this.findAlunoBase(alunoId, currentUser.academiaId);
     if (!aluno) {
@@ -393,9 +397,23 @@ export class AlunosService {
     return rows.map((r) => r.papel);
   }
 
-  private ensureAlunoScope(currentUser: CurrentUser, alunoId: string) {
-    if (currentUser.role === UserRole.ALUNO && currentUser.id !== alunoId) {
-      throw new ForbiddenException('Aluno so pode acessar o proprio id');
+  private async ensureAlunoScope(currentUser: CurrentUser, alunoId: string) {
+    if (currentUser.id === alunoId) return;
+
+    if (currentUser.role === UserRole.ALUNO) {
+      // Se for aluno, só pode ver se o alvo for Instrutor/Professor/Admin na mesma academia
+      const possessesStaffRole = await this.databaseService.queryOne<{ id: string }>(
+        `select usuario_id as id from usuarios_papeis 
+         where usuario_id = $1 
+           and academia_id = $2 
+           and papel in ('INSTRUTOR', 'PROFESSOR', 'ADMIN', 'TI')
+         limit 1;`,
+        [alunoId, currentUser.academiaId],
+      );
+
+      if (!possessesStaffRole) {
+        throw new ForbiddenException('Aluno so pode acessar o proprio id');
+      }
     }
   }
 
@@ -440,6 +458,8 @@ export class AlunosService {
           u.telefone,
           u.sexo,
           u.faixa_declarada,
+          u.foto_url,
+          u.foto_capa_url,
           COALESCE(mp.matricula_status, u.status_matricula::text, 'INCOMPLETO') as status_matricula
         from usuarios u
         join vinculos v

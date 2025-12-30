@@ -48,4 +48,10 @@ export class AlunoDetalheDto {
 
   @ApiProperty()
   presencasTotais: number;
+
+  @ApiProperty({ nullable: true })
+  fotoUrl: string | null;
+
+  @ApiProperty({ nullable: true })
+  fotoCapaUrl: string | null;
 }

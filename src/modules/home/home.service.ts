@@ -48,13 +48,13 @@ export class HomeService {
       me,
     };
 
-    if (resolvedMode === 'ALUNO') {
+    // Bloco ALUNO: Sempre inclui se o usuário tem o papel ALUNO
+    if (rolesNormalized.includes(UserRole.ALUNO)) {
       const alunoDashboard = await this.dashboardService.getAlunoDashboard({
         id: currentUser.id,
         academiaId: currentUser.academiaId,
       });
 
-      // Checkins - pode falhar se matrícula não está ativa (PENDENTE)
       let checkins: any[] = [];
       try {
         checkins = await this.checkinService.listarDisponiveis({
@@ -62,17 +62,11 @@ export class HomeService {
           roles: rolesNormalized,
         });
       } catch {
-        // PENDENTE não tem acesso a check-ins, retorna vazio
         checkins = [];
       }
 
-      const ultimasPresencas = await this.buscarUltimasPresencas(
-        currentUser,
-      );
-
-      const historicoGraduacoes = await this.buscarHistoricoGraduacoes(
-        currentUser,
-      );
+      const ultimasPresencas = await this.buscarUltimasPresencas(currentUser);
+      const historicoGraduacoes = await this.buscarHistoricoGraduacoes(currentUser);
 
       base.aluno = {
         dashboard: alunoDashboard,
@@ -80,7 +74,10 @@ export class HomeService {
         ultimasPresencas,
         historicoGraduacoes,
       };
-    } else {
+    }
+
+    // Bloco STAFF: Sempre inclui se o usuário tem qualquer papel STAFF
+    if (isStaff) {
       const staffDashboard = await this.dashboardService.getStaffDashboard({
         id: currentUser.id,
         academiaId: currentUser.academiaId,

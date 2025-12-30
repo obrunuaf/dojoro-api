@@ -28,6 +28,8 @@ type CheckinDisponivelRow = {
   tipo_treino: string | null;
   tipo_treino_cor: string | null;
   ja_fez_checkin: boolean;
+  instrutor_id: string | null;
+  instrutor_nome: string | null;
 };
 
 type AulaRow = {
@@ -61,9 +63,16 @@ export class CheckinService {
       currentUser.academiaId,
     );
 
-    const tz = this.databaseService.getAppTimezone();
-    const { startUtc, endUtc } =
-      await this.databaseService.getTodayBoundsUtc(tz);
+    // Buscar configuração da janela de check-in da academia
+    const configResult = await this.databaseService.query<{
+      checkin_window_before_min: number;
+      checkin_window_after_min: number;
+    }>(
+      `SELECT checkin_window_before_min, checkin_window_after_min FROM academias WHERE id = $1`,
+      [currentUser.academiaId],
+    );
+    const windowBefore = configResult[0]?.checkin_window_before_min ?? 30;
+    const windowAfter = configResult[0]?.checkin_window_after_min ?? 60;
 
     const aulas = await this.databaseService.query<CheckinDisponivelRow>(
       `
@@ -82,23 +91,26 @@ export class CheckinService {
               ELSE '#6B7280'
             END
           ) as tipo_treino_cor,
+          instrutor.id as instrutor_id,
+          instrutor.nome_completo as instrutor_nome,
           (p.id is not null) as ja_fez_checkin
         from aulas a
         join turmas t on t.id = a.turma_id
         left join tipos_treino tt on tt.id = t.tipo_treino_id
+        left join usuarios instrutor on instrutor.id = COALESCE(a.instrutor_id, t.instrutor_padrao_id)
         left join presencas p
           on p.aula_id = a.id
-         and p.aluno_id = $4
+         and p.aluno_id = $2
          and p.academia_id = a.academia_id
         where a.academia_id = $1
-          and a.data_inicio >= $2
-          and a.data_inicio < $3
+          and a.data_inicio >= (NOW() - INTERVAL '1 minute' * $3)
+          and a.data_inicio <= (NOW() + INTERVAL '1 minute' * $4)
           and a.status <> 'CANCELADA'
           and a.deleted_at is null
           and t.deleted_at is null
         order by a.data_inicio asc;
       `,
-      [currentUser.academiaId, startUtc, endUtc, currentUser.id],
+      [currentUser.academiaId, currentUser.id, windowAfter, windowBefore],
     );
 
     return aulas.map((row) => ({
@@ -109,6 +121,8 @@ export class CheckinService {
       tipoTreino: row.tipo_treino ?? null,
       tipoTreinoCor: row.tipo_treino_cor ?? null,
       statusAula: row.status_aula,
+      instrutorId: row.instrutor_id ?? null,
+      instrutorNome: row.instrutor_nome ?? null,
       jaFezCheckin: !!row.ja_fez_checkin,
     }));
   }

@@ -1358,6 +1358,7 @@ export class AulasService {
       status: row.status,
       tipoTreino: row.tipo_treino,
       tipoTreinoCor: row.tipo_treino_cor,
+      instrutorId: row.instrutor_id ?? null,
       instrutorPadraoId: row.instrutor_id ?? null,
       instrutorNome: row.instrutor_nome ?? null,
       qrToken: opts?.includeQr ? row.qr_token ?? null : null,

@@ -38,6 +38,18 @@ export class DatabaseService implements OnModuleDestroy {
           }
         : false,
     });
+
+    // Migração automática para a nova coluna de capa
+    this.runMigrations();
+  }
+
+  private async runMigrations() {
+    try {
+      await this.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS foto_capa_url character varying;');
+      console.log('✅ Migração: Coluna foto_capa_url verificada/adicionada.');
+    } catch (err) {
+      console.error('❌ Erro na migração automática:', err);
+    }
   }
 
   async query<T = any>(text: string, params?: any[]): Promise<T[]> {

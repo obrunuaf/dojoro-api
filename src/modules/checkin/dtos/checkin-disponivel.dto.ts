@@ -22,6 +22,12 @@ export class CheckinDisponivelDto {
   @ApiProperty()
   statusAula: string;
 
+  @ApiProperty({ required: false, nullable: true })
+  instrutorId: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  instrutorNome: string | null;
+
   @ApiProperty({ description: 'Indica se ja existe presenca para o aluno na aula' })
   jaFezCheckin: boolean;
 }

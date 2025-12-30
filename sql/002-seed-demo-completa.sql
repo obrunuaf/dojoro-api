@@ -65,7 +65,7 @@ values
     crypt('SenhaInstrutor123', gen_salt('bf')),
     'Instrutor Seed',
     'ACTIVE',
-    'marrom',
+    null,   -- faixa_atual_slug deve ser null para permitir escolha no completar perfil
     0,
     true),
 
