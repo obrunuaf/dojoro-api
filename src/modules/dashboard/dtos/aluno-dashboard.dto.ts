@@ -31,4 +31,11 @@ export class AlunoDashboardDto {
 
   @ApiProperty({ description: 'Semanas consecutivas com treino' })
   semanasConsecutivas: number;
+
+  // Progresso da faixa (total desde início na faixa atual)
+  @ApiProperty({ description: 'Total de aulas desde que entrou na faixa atual' })
+  aulasNaFaixaAtual: number;
+
+  @ApiProperty({ description: 'Meta de aulas para próxima faixa' })
+  metaAulasFaixa: number;
 }

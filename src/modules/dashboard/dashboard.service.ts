@@ -72,6 +72,8 @@ export class DashboardService {
       );
 
       let regraGraduacao: RegraGraduacaoRow | null = null;
+      let regraProximaFaixa: { meta_aulas_faixa: number | null } | null = null;
+      
       if (faixaAtual?.faixa_atual_slug) {
         regraGraduacao = await this.databaseService.queryOne<RegraGraduacaoRow>(
           `
@@ -85,9 +87,22 @@ export class DashboardService {
           `,
           [user.academiaId, faixaAtual.faixa_atual_slug],
         );
+        
+        // Busca meta para próxima faixa (aulas_minimas da faixa atual)
+        regraProximaFaixa = await this.databaseService.queryOne<{ meta_aulas_faixa: number | null }>(
+          `
+            select aulas_minimas as meta_aulas_faixa
+            from regras_graduacao
+            where academia_id = $1
+              and faixa_slug = $2
+            limit 1;
+          `,
+          [user.academiaId, faixaAtual.faixa_atual_slug],
+        );
       }
 
       const metaAulas = this.resolveMetaAulas(regraGraduacao);
+      const metaAulasFaixa = regraProximaFaixa?.meta_aulas_faixa ?? 60;
 
       if (!matricula || matricula.status !== 'ATIVA') {
         return {
@@ -101,6 +116,8 @@ export class DashboardService {
           treinosMes: 0,
           frequenciaMes: 0,
           semanasConsecutivas: 0,
+          aulasNaFaixaAtual: 0,
+          metaAulasFaixa,
         };
       }
 
@@ -123,6 +140,7 @@ export class DashboardService {
         [user.academiaId],
       );
 
+      // Última graduação de GRAU (para progresso do grau)
       const ultimaGraduacao = await this.databaseService.queryOne<{
         data_graduacao: string | null;
       }>(
@@ -133,6 +151,21 @@ export class DashboardService {
             and g.academia_id = $2;
         `,
         [user.id, user.academiaId],
+      );
+
+      // Última graduação de FAIXA (para progresso da faixa)
+      const ultimaGraduacaoFaixa = await this.databaseService.queryOne<{
+        data_graduacao: string | null;
+      }>(
+        `
+          select max(g.data_graduacao) as data_graduacao
+          from graduacoes g
+          join faixas f on f.slug = g.faixa_slug
+          where g.usuario_id = $1
+            and g.academia_id = $2
+            and g.faixa_slug = $3;
+        `,
+        [user.id, user.academiaId, faixaAtual?.faixa_atual_slug],
       );
 
       const dataReferencia =
@@ -163,6 +196,28 @@ export class DashboardService {
             )
           : 0;
 
+      // Presenças na faixa atual (desde que recebeu a faixa)
+      const dataReferenciaFaixa =
+        ultimaGraduacaoFaixa?.data_graduacao ??
+        matricula.data_inicio ??
+        '1970-01-01';
+        
+      const presencasFaixa = await this.databaseService.queryOne<{ total: number }>(
+        `
+          select count(*)::int as total
+          from presencas p
+          join aulas a on a.id = p.aula_id
+          where p.aluno_id = $1
+            and p.academia_id = $2
+            and a.academia_id = $2
+            and p.status = 'PRESENTE'
+            and a.data_inicio::date >= $3::date;
+        `,
+        [user.id, user.academiaId, dataReferenciaFaixa],
+      );
+
+      const aulasNaFaixaAtual = presencasFaixa?.total ?? 0;
+
       // Stats de engajamento
       const statsEngajamento = await this.calcularStatsEngajamento(user);
 
@@ -177,6 +232,8 @@ export class DashboardService {
         progressoPercentual,
         statusMatricula,
         ...statsEngajamento,
+        aulasNaFaixaAtual,
+        metaAulasFaixa,
       };
     } catch (error) {
       throw new InternalServerErrorException(

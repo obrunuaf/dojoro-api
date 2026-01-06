@@ -79,6 +79,7 @@ export class PresencasService {
    */
   async getStats(currentUser: CurrentUser): Promise<{
     treinosMes: number;
+    treinosAno: number;
     sequencia: number;
     presencasTotais: number;
     ultimoTreino: string | null;
@@ -89,6 +90,7 @@ export class PresencasService {
     // Query para calcular todas as métricas de uma vez
     const stats = await this.databaseService.queryOne<{
       treinos_mes: string;
+      treinos_ano: string;
       presencas_totais: string;
       ultimo_treino: string | null;
       media_semanal: string;
@@ -107,6 +109,12 @@ export class PresencasService {
         WHERE data_aula >= date_trunc('month', CURRENT_DATE AT TIME ZONE $3)
           AND data_aula < date_trunc('month', CURRENT_DATE AT TIME ZONE $3) + interval '1 month'
       ),
+      ano_atual AS (
+        SELECT COUNT(*) as total
+        FROM presencas_aluno
+        WHERE data_aula >= date_trunc('year', CURRENT_DATE AT TIME ZONE $3)
+          AND data_aula < date_trunc('year', CURRENT_DATE AT TIME ZONE $3) + interval '1 year'
+      ),
       total_geral AS (
         SELECT COUNT(*) as total
         FROM presencas_aluno
@@ -124,6 +132,7 @@ export class PresencasService {
       )
       SELECT 
         COALESCE((SELECT total FROM mes_atual), 0) as treinos_mes,
+        COALESCE((SELECT total FROM ano_atual), 0) as treinos_ano,
         COALESCE((SELECT total FROM total_geral), 0) as presencas_totais,
         (SELECT data FROM ultimo) as ultimo_treino,
         COALESCE(
@@ -174,6 +183,7 @@ export class PresencasService {
 
     return {
       treinosMes: parseInt(stats?.treinos_mes ?? '0'),
+      treinosAno: parseInt(stats?.treinos_ano ?? '0'),
       sequencia,
       presencasTotais: parseInt(stats?.presencas_totais ?? '0'),
       ultimoTreino: stats?.ultimo_treino ?? null,
