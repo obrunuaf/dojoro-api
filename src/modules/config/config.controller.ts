@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
 import {
   ApiOkResponse,
   ApiOperation,
@@ -36,21 +36,34 @@ export class ConfigController {
 
   @Get('regras-graduacao')
   @Roles(UserRole.PROFESSOR, UserRole.ADMIN, UserRole.TI)
-  @ApiOperation({ summary: 'Lista regras de graduação' })
+  @ApiOperation({ summary: 'Lista regras de graduação da academia' })
   @ApiOkResponse({ type: [RegraGraduacaoDto] })
-  async listarRegras(): Promise<RegraGraduacaoDto[]> {
-    return this.configService.listarRegrasGraduacao();
+  async listarRegras(
+    @CurrentUser() user: CurrentUserPayload,
+  ): Promise<RegraGraduacaoDto[]> {
+    return this.configService.listarRegrasGraduacao(user.academiaId);
   }
 
   @Put('regras-graduacao/:faixaSlug')
-  @Roles(UserRole.ADMIN, UserRole.TI, UserRole.PROFESSOR)
+  @Roles(UserRole.ADMIN, UserRole.TI)
   @ApiOperation({ summary: 'Atualiza regras de graduação para faixa' })
   @ApiOkResponse({ type: RegraGraduacaoDto })
   async atualizarRegra(
+    @CurrentUser() user: CurrentUserPayload,
     @Param('faixaSlug') faixaSlug: string,
     @Body() dto: UpdateRegraGraduacaoDto,
   ): Promise<RegraGraduacaoDto> {
-    return this.configService.atualizarRegra(faixaSlug, dto);
+    return this.configService.atualizarRegra(user.academiaId, faixaSlug, dto);
+  }
+
+  @Post('regras-graduacao/reset')
+  @Roles(UserRole.ADMIN, UserRole.TI)
+  @ApiOperation({ summary: 'Reseta regras de graduação para os valores padrão' })
+  @ApiOkResponse({ description: 'Número de regras resetadas' })
+  async resetarRegras(
+    @CurrentUser() user: CurrentUserPayload,
+  ): Promise<{ count: number }> {
+    return this.configService.resetarParaPadrao(user.academiaId);
   }
 
   @Get('motivos-cancelamento')
@@ -71,5 +84,12 @@ export class ConfigController {
     @CurrentUser() user: CurrentUserPayload,
   ): Promise<MotivoCancelamentoDto[]> {
     return this.configService.listarMotivosCancelamento(user.academiaId, 'AULA');
+  }
+
+  @Get('faixas')
+  @Roles(UserRole.INSTRUTOR, UserRole.PROFESSOR, UserRole.ADMIN, UserRole.TI)
+  @ApiOperation({ summary: 'Lista todas as faixas disponíveis' })
+  async listarFaixas(): Promise<{ slug: string; nome: string; ordem: number }[]> {
+    return this.configService.listarFaixas();
   }
 }

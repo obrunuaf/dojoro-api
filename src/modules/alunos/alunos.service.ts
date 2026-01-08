@@ -120,7 +120,26 @@ export class AlunosService {
     };
   }
 
-  async listar(currentUser: CurrentUser): Promise<AlunoDto[]> {
+  async listar(
+    currentUser: CurrentUser,
+    options: { busca?: string; limite?: number } = {},
+  ): Promise<AlunoDto[]> {
+    const params: any[] = [currentUser.academiaId];
+    let whereClause = '';
+
+    if (options.busca) {
+      params.push(`%${options.busca}%`);
+      whereClause = `
+        AND (
+          u.nome_completo ILIKE $2 
+          OR u.email ILIKE $2 
+          OR mp.numero_matricula::text ILIKE $2
+        )
+      `;
+    }
+
+    const limitClause = options.limite ? `LIMIT ${Number(options.limite)}` : '';
+
     const alunos = await this.databaseService.query<AlunoBaseRow>(
       `
         with matricula_prioritaria as (
@@ -138,9 +157,11 @@ export class AlunosService {
         vinculos as (
           select usuario_id, academia_id, criado_em
           from usuarios_papeis
+          where academia_id = $1
           union all
           select usuario_id, academia_id, criado_em
           from matriculas
+          where academia_id = $1
         ),
         alunos_base as (
           select distinct on (u.id)
@@ -161,16 +182,18 @@ export class AlunosService {
           from usuarios u
           join vinculos v
             on v.usuario_id = u.id
-           and v.academia_id = $1
           left join matricula_prioritaria mp
             on mp.usuario_id = u.id
+          where v.academia_id = $1
+          ${whereClause}
           order by u.id, v.criado_em desc
         )
         select *
         from alunos_base
-        order by nome_completo asc;
+        order by nome_completo asc
+        ${limitClause};
       `,
-      [currentUser.academiaId],
+      params,
     );
 
     return alunos.map((row) => ({

@@ -4,10 +4,11 @@ import {
   Get,
   Patch,
   Param,
+  Query,
   ParseUUIDPipe,
   UseGuards,
 } from '@nestjs/common';
-import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { ApiAuth } from '../../common/decorators/api-auth.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/user.decorator';
@@ -55,11 +56,15 @@ export class AlunosController {
   @UseGuards(AcademiaStatusGuard)
   @Roles(UserRole.INSTRUTOR, UserRole.PROFESSOR, UserRole.ADMIN, UserRole.TI)
   @ApiOperation({ summary: 'Lista alunos' })
+  @ApiQuery({ name: 'busca', required: false, type: String })
+  @ApiQuery({ name: 'limite', required: false, type: Number })
   @ApiOkResponse({ type: [AlunoDto] })
   async listar(
     @CurrentUser() user: CurrentUserPayload,
+    @Query('busca') busca?: string,
+    @Query('limite') limite?: number,
   ): Promise<AlunoDto[]> {
-    return this.alunosService.listar(user);
+    return this.alunosService.listar(user, { busca, limite });
   }
 
   @Get(':id')

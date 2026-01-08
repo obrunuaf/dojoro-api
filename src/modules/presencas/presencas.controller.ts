@@ -33,12 +33,17 @@ export class PresencasController {
 
   @Get('stats')
   @Roles(UserRole.ALUNO, UserRole.INSTRUTOR, UserRole.PROFESSOR, UserRole.ADMIN, UserRole.TI)
-  @ApiOperation({ summary: 'Retorna estatísticas de presença do usuário logado' })
+  @ApiOperation({ 
+    summary: 'Retorna estatísticas de presença',
+    description: 'Retorna stats do usuário logado. Staff pode passar alunoId para consultar outro aluno.'
+  })
   @ApiOkResponse({
     schema: {
       example: {
         treinosMes: 12,
+        treinosAno: 89,
         sequencia: 5,
+        semanasConsecutivas: 8,
         presencasTotais: 45,
         ultimoTreino: '2024-12-28',
         mediaSemanal: 3.2,
@@ -47,14 +52,17 @@ export class PresencasController {
   })
   async getStats(
     @CurrentUserDecorator() user: CurrentUser,
+    @Query('alunoId') alunoId?: string,
   ): Promise<{
     treinosMes: number;
+    treinosAno: number;
     sequencia: number;
+    semanasConsecutivas: number;
     presencasTotais: number;
     ultimoTreino: string | null;
     mediaSemanal: number;
   }> {
-    return this.presencasService.getStats(user);
+    return this.presencasService.getStats(user, alunoId);
   }
 
   @Get('pendencias')

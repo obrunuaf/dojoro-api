@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class GraduacaoDto {
   @ApiProperty()
@@ -8,16 +8,19 @@ export class GraduacaoDto {
   alunoId: string;
 
   @ApiProperty()
+  alunoNome: string;
+
+  @ApiProperty()
   faixaAnterior: string;
 
   @ApiProperty()
-  grauAnterior: string;
+  grauAnterior: number;
 
   @ApiProperty()
   faixaNova: string;
 
   @ApiProperty()
-  grauNovo: string;
+  grauNovo: number;
 
   @ApiProperty()
   dataGraduacao: string;
@@ -25,6 +28,15 @@ export class GraduacaoDto {
   @ApiProperty()
   professorId: string;
 
-  @ApiProperty({ required: false })
+  @ApiProperty()
+  professorNome: string;
+
+  @ApiPropertyOptional()
   observacoes?: string;
+
+  @ApiPropertyOptional()
+  aulaVinculadaId?: string;
+
+  @ApiProperty({ description: 'Status: PENDENTE, CONFIRMADA, CANCELADA' })
+  status: string;
 }

@@ -314,6 +314,10 @@ export class AuthRepository {
     academia_id: string;
     numero_matricula: number;
   }> {
+    // Para alunos, garantir que tenham faixa branca por padrão
+    const faixa = params.faixaAtualSlug ?? (params.papel === 'ALUNO' ? 'branca' : null);
+    const grau = params.grauAtual ?? (params.papel === 'ALUNO' ? 0 : null);
+
     const usuario = await this.databaseService.queryOne<{ id: string }>(
       `
         insert into usuarios (
@@ -330,8 +334,8 @@ export class AuthRepository {
         params.email,
         params.senhaHash,
         params.nomeCompleto,
-        params.faixaAtualSlug ?? null,
-        params.grauAtual ?? null,
+        faixa,
+        grau,
         params.aceitouTermos,
       ],
     );

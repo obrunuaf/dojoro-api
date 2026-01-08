@@ -75,16 +75,40 @@ export class PresencasService {
   private presencaAuditColumnsPromise?: Promise<PresencaAuditColumns>;
 
   /**
-   * Retorna estatísticas de presença do usuário logado
+   * Retorna estatísticas de presença
+   * - Se alunoId não informado: retorna stats do usuário logado
+   * - Se alunoId informado: staff pode consultar stats de qualquer aluno da academia
    */
-  async getStats(currentUser: CurrentUser): Promise<{
+  async getStats(
+    currentUser: CurrentUser,
+    alunoId?: string,
+  ): Promise<{
     treinosMes: number;
     treinosAno: number;
     sequencia: number;
+    semanasConsecutivas: number;
     presencasTotais: number;
     ultimoTreino: string | null;
     mediaSemanal: number;
   }> {
+    // Determinar qual aluno consultar
+    let targetAlunoId = currentUser.id;
+    
+    if (alunoId) {
+      // Se informou alunoId, só staff pode consultar outro aluno
+      const isStaff = currentUser.roles.some(r => 
+        [UserRole.INSTRUTOR, UserRole.PROFESSOR, UserRole.ADMIN, UserRole.TI].includes(r)
+      );
+      
+      if (!isStaff && alunoId !== currentUser.id) {
+        throw new ForbiddenException('Apenas staff pode consultar stats de outro aluno');
+      }
+      
+      // Verificar se aluno pertence à academia
+      await this.ensureAlunoScope(alunoId, currentUser);
+      targetAlunoId = alunoId;
+    }
+
     const tz = this.databaseService.getAppTimezone();
     
     // Query para calcular todas as métricas de uma vez
@@ -123,12 +147,10 @@ export class PresencasService {
         SELECT MAX(data_aula) as data
         FROM presencas_aluno
       ),
-      semanas AS (
+      semanas_ano AS (
         SELECT 
-          GREATEST(1, EXTRACT(WEEK FROM CURRENT_DATE) - EXTRACT(WEEK FROM MIN(data_aula)) + 1) as num_semanas,
-          COUNT(*) as total_presencas
-        FROM presencas_aluno
-        WHERE data_aula >= CURRENT_DATE - interval '12 weeks'
+          -- Semanas transcorridas desde início do ano
+          GREATEST(1, CEIL((CURRENT_DATE - date_trunc('year', CURRENT_DATE)::date + 1)::numeric / 7)) as num_semanas
       )
       SELECT 
         COALESCE((SELECT total FROM mes_atual), 0) as treinos_mes,
@@ -136,10 +158,10 @@ export class PresencasService {
         COALESCE((SELECT total FROM total_geral), 0) as presencas_totais,
         (SELECT data FROM ultimo) as ultimo_treino,
         COALESCE(
-          ROUND((SELECT total_presencas FROM semanas)::numeric / NULLIF((SELECT num_semanas FROM semanas), 0), 1),
+          ROUND((SELECT total FROM ano_atual)::numeric / NULLIF((SELECT num_semanas FROM semanas_ano), 0), 1),
           0
         ) as media_semanal
-    `, [currentUser.id, currentUser.academiaId, tz]);
+    `, [targetAlunoId, currentUser.academiaId, tz]);
 
     // Calcular sequência de dias consecutivos
     const sequenciaRows = await this.databaseService.query<{ data_aula: string }>(`
@@ -151,7 +173,7 @@ export class PresencasService {
         AND p.status = 'PRESENTE'
       ORDER BY data_aula DESC
       LIMIT 90
-    `, [currentUser.id, currentUser.academiaId]);
+    `, [targetAlunoId, currentUser.academiaId]);
 
     let sequencia = 0;
     if (sequenciaRows.length > 0) {
@@ -181,10 +203,36 @@ export class PresencasService {
       }
     }
 
+    // Calcular semanas consecutivas com treino
+    const semanasResult = await this.databaseService.queryOne<{ semanas: number }>(`
+      WITH semanas_com_treino AS (
+        SELECT DISTINCT DATE_TRUNC('week', a.data_inicio)::date AS semana
+        FROM presencas p
+        JOIN aulas a ON a.id = p.aula_id
+        WHERE p.aluno_id = $1
+          AND p.academia_id = $2
+          AND p.status = 'PRESENTE'
+          AND a.deleted_at IS NULL
+        ORDER BY semana DESC
+      ),
+      semanas_ordenadas AS (
+        SELECT semana,
+               ROW_NUMBER() OVER (ORDER BY semana DESC) AS rn,
+               semana - (ROW_NUMBER() OVER (ORDER BY semana DESC) * INTERVAL '1 week') AS grupo
+        FROM semanas_com_treino
+      )
+      SELECT COUNT(*)::int AS semanas
+      FROM semanas_ordenadas
+      WHERE grupo = (SELECT grupo FROM semanas_ordenadas WHERE rn = 1);
+    `, [targetAlunoId, currentUser.academiaId]);
+    
+    const semanasConsecutivas = semanasResult?.semanas ?? 0;
+
     return {
       treinosMes: parseInt(stats?.treinos_mes ?? '0'),
       treinosAno: parseInt(stats?.treinos_ano ?? '0'),
       sequencia,
+      semanasConsecutivas,
       presencasTotais: parseInt(stats?.presencas_totais ?? '0'),
       ultimoTreino: stats?.ultimo_treino ?? null,
       mediaSemanal: parseFloat(stats?.media_semanal ?? '0'),

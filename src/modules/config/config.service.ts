@@ -42,29 +42,119 @@ export class ConfigService {
     }));
   }
 
-  async listarRegrasGraduacao(): Promise<RegraGraduacaoDto[]> {
-    return [
-      {
-        faixaSlug: 'azul',
-        aulasMinimas: 50,
-        tempoMinimoMeses: 12,
-        observacoes: 'Mock rule',
-      },
-    ];
-    // TODO: puxar regras reais por academia (spec 3.5.5)
+  async listarRegrasGraduacao(academiaId: string): Promise<RegraGraduacaoDto[]> {
+    // Busca regras da academia com fallback para defaults
+    const rows = await this.databaseService.query<{
+      faixa_slug: string;
+      faixa_nome: string;
+      categoria: string;
+      graus_maximos: number;
+      aulas_minimas: number;
+      tempo_minimo_meses: number;
+      meta_aulas_no_grau: number;
+      frequencia_minima_semanal: number | null;
+    }>(
+      `
+        SELECT 
+          f.slug as faixa_slug,
+          f.nome as faixa_nome,
+          f.categoria,
+          f.graus_maximos,
+          COALESCE(r.aulas_minimas, d.aulas_minimas, 100) as aulas_minimas,
+          COALESCE(r.tempo_minimo_meses, d.tempo_minimo_meses, 12) as tempo_minimo_meses,
+          COALESCE(r.meta_aulas_no_grau, d.meta_aulas_no_grau, 25) as meta_aulas_no_grau,
+          COALESCE(r.frequencia_minima_semanal, 0) as frequencia_minima_semanal
+        FROM faixas f
+        LEFT JOIN regras_graduacao r ON r.faixa_slug = f.slug AND r.academia_id = $1
+        LEFT JOIN regras_graduacao_default d ON d.faixa_slug = f.slug
+        ORDER BY f.ordem ASC
+      `,
+      [academiaId],
+    );
+
+    return rows.map((row) => ({
+      faixaSlug: row.faixa_slug,
+      faixaNome: row.faixa_nome,
+      categoria: row.categoria,
+      grausMaximos: row.graus_maximos,
+      exibirGrausPreenchidos: row.categoria === 'HONORIFICA', // Faixas honoríficas sempre mostram graus cheios
+      aulasMinimas: row.aulas_minimas,
+      tempoMinimoMeses: row.tempo_minimo_meses,
+      metaAulasNoGrau: row.meta_aulas_no_grau,
+      frequenciaMinimaSemal: row.frequencia_minima_semanal || undefined,
+    }));
   }
 
   async atualizarRegra(
+    academiaId: string,
     faixaSlug: string,
     dto: UpdateRegraGraduacaoDto,
   ): Promise<RegraGraduacaoDto> {
+    // Upsert da regra
+    await this.databaseService.query(
+      `
+        INSERT INTO regras_graduacao (academia_id, faixa_slug, aulas_minimas, tempo_minimo_meses, meta_aulas_no_grau, frequencia_minima_semanal)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (academia_id, faixa_slug) 
+        DO UPDATE SET 
+          aulas_minimas = EXCLUDED.aulas_minimas,
+          tempo_minimo_meses = EXCLUDED.tempo_minimo_meses,
+          meta_aulas_no_grau = EXCLUDED.meta_aulas_no_grau,
+          frequencia_minima_semanal = EXCLUDED.frequencia_minima_semanal
+      `,
+      [
+        academiaId,
+        faixaSlug,
+        dto.aulasMinimas,
+        dto.tempoMinimoMeses,
+        dto.metaAulasNoGrau,
+        dto.frequenciaMinimaSemal ?? null,
+      ],
+    );
+
+    // Busca dados da faixa para retorno
+    const faixa = await this.databaseService.queryOne<{ 
+      nome: string; 
+      categoria: string; 
+      graus_maximos: number;
+    }>(
+      `SELECT nome, categoria, graus_maximos FROM faixas WHERE slug = $1`,
+      [faixaSlug],
+    );
+
     return {
       faixaSlug,
+      faixaNome: faixa?.nome || faixaSlug,
+      categoria: faixa?.categoria || 'ADULTO',
+      grausMaximos: faixa?.graus_maximos || 4,
+      exibirGrausPreenchidos: faixa?.categoria === 'HONORIFICA',
       aulasMinimas: dto.aulasMinimas,
       tempoMinimoMeses: dto.tempoMinimoMeses,
+      metaAulasNoGrau: dto.metaAulasNoGrau,
+      frequenciaMinimaSemal: dto.frequenciaMinimaSemal,
       observacoes: dto.observacoes,
     };
-    // TODO: persistir atualização de regras (spec 3.5.6)
+  }
+
+  async resetarParaPadrao(academiaId: string): Promise<{ count: number }> {
+    // Remove regras customizadas da academia
+    await this.databaseService.query(
+      `DELETE FROM regras_graduacao WHERE academia_id = $1`,
+      [academiaId],
+    );
+
+    // Recria a partir dos defaults
+    const result = await this.databaseService.query<{ count: number }>(
+      `
+        INSERT INTO regras_graduacao (id, academia_id, faixa_slug, aulas_minimas, tempo_minimo_meses, meta_aulas_no_grau)
+        SELECT gen_random_uuid(), $1, faixa_slug, aulas_minimas, tempo_minimo_meses, meta_aulas_no_grau
+        FROM regras_graduacao_default
+        RETURNING 1
+      `,
+      [academiaId],
+    );
+
+    return { count: result.length };
   }
 
   /**
@@ -123,5 +213,16 @@ export class ConfigService {
       { id: 'duplicado', label: 'Check-in duplicated', icon: 'copy-outline' },
       { id: 'outro', label: 'Outro motivo', icon: 'ellipsis-horizontal' },
     ];
+  }
+
+  async listarFaixas(): Promise<{ slug: string; nome: string; ordem: number }[]> {
+    const rows = await this.databaseService.query<{
+      slug: string;
+      nome: string;
+      ordem: number;
+    }>(
+      `SELECT slug, nome, ordem FROM faixas WHERE categoria = 'ADULTO' ORDER BY ordem ASC`,
+    );
+    return rows;
   }
 }
